@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEBO Cup — Weekly Update Tool</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff; --bg2: #f7f6f2; --bg3: #f0ede6;
+    --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+    --text: #1a1a18; --text2: #6b6a64; --text3: #9e9d97;
+    --green: #2d6a4f; --red: #9b2226; --gold: #b5860d;
+    --gold-bg: #fff3cd; --silver-bg: #f0ede6; --bronze-bg: #f5cba7;
+    --radius: 8px; --radius-lg: 12px;
+  }
+  body { font-family: 'Georgia','Times New Roman',serif; background: var(--bg2); color: var(--text); min-height: 100vh; padding: 2rem 1rem; }
+  .container { max-width: 800px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 2px solid var(--text); }
+  header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; text-transform: uppercase; }
+  header p { font-size: 13px; color: var(--text2); margin-top: 4px; font-style: italic; }
+
+  .status-bar { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; padding: 8px 12px; border-radius: var(--radius); margin-bottom: 1.25rem; border: 0.5px solid var(--border); background: var(--bg); color: var(--text2); display: flex; align-items: center; gap: 8px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--text3); }
+  .status-dot.ok { background: #2d6a4f; }
+  .status-dot.err { background: #9b2226; }
+  .status-dot.loading { background: #b5860d; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem; }
+  .section-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text2); margin-bottom: 10px; font-family: 'Helvetica Neue',Arial,sans-serif; }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-group { display: flex; flex-direction: column; gap: 5px; }
+  .field-group label { font-size: 12px; color: var(--text2); font-family: 'Helvetica Neue',Arial,sans-serif; }
+  input[type="text"], input[type="date"], input[type="number"], select { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 13px; padding: 7px 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text); width: 100%; outline: none; }
+  input:focus, select:focus { border-color: var(--text); }
+
+  /* Drop zone */
+  .drop-zone { border: 1.5px dashed var(--border2); border-radius: var(--radius-lg); padding: 2rem; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; font-family: 'Helvetica Neue',Arial,sans-serif; }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--text); background: var(--bg2); }
+  .drop-zone .dz-icon { font-size: 28px; margin-bottom: 8px; }
+  .drop-zone .dz-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .drop-zone .dz-sub { font-size: 12px; color: var(--text2); }
+  .drop-zone input[type="file"] { display: none; }
+
+  /* Import preview table */
+  .import-table { width: 100%; border-collapse: collapse; font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 13px; }
+  .import-table th { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text2); text-align: left; padding: 6px 8px; border-bottom: 0.5px solid var(--border); }
+  .import-table td { padding: 6px 8px; border-bottom: 0.5px solid var(--border); color: var(--text); vertical-align: middle; }
+  .import-table tr:last-child td { border-bottom: none; }
+  .match-ok { color: var(--green); font-weight: 600; }
+  .match-warn { color: var(--gold); font-weight: 600; }
+  .match-none { color: var(--red); font-weight: 600; }
+  .rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: 11px; font-weight: 700; background: var(--bg2); color: var(--text2); }
+  .rank-1 { background: var(--gold-bg); color: var(--gold); }
+  .rank-2 { background: var(--silver-bg); color: #444; }
+  .rank-3 { background: var(--bronze-bg); color: #7a4a1e; }
+
+  /* Manual override select in table */
+  .import-table select { font-size: 12px; padding: 4px 6px; height: 28px; }
+
+  /* Unmatched warning */
+  .unmatched-box { background: #fff8e1; border: 0.5px solid #f9c74f; border-radius: var(--radius); padding: 10px 14px; font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; color: #7a5c00; margin-top: 10px; }
+
+  .results-header { display: grid; grid-template-columns: 2fr 75px 90px 60px 60px 28px; gap: 6px; padding: 0 2px 6px; border-bottom: 0.5px solid var(--border); margin-bottom: 8px; }
+  .results-header span { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text2); font-family: 'Helvetica Neue',Arial,sans-serif; }
+  .result-row { display: grid; grid-template-columns: 2fr 75px 90px 60px 60px 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .dc-out, .pr-out { font-size: 13px; font-weight: 600; text-align: center; font-family: 'Helvetica Neue',Arial,sans-serif; color: var(--text2); }
+  .remove-btn { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 16px; padding: 0; line-height: 1; }
+  .remove-btn:hover { color: var(--red); }
+  .add-btn { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; padding: 5px 14px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg2); color: var(--text2); cursor: pointer; margin-top: 8px; }
+  .add-btn:hover { background: var(--bg3); color: var(--text); }
+
+  .calc-btn { width: 100%; padding: 12px; font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; border: 2px solid var(--text); border-radius: var(--radius); background: var(--text); color: var(--bg); cursor: pointer; margin-bottom: 1.5rem; }
+  .calc-btn:hover { background: #333; }
+  .calc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .top-tabs { display: flex; border-bottom: 0.5px solid var(--border); margin-bottom: 1.5rem; }
+  .top-tab { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; padding: 8px 18px; border: none; border-bottom: 2px solid transparent; background: none; color: var(--text2); cursor: pointer; margin-bottom: -1px; }
+  .top-tab.active { color: var(--text); border-bottom-color: var(--text); }
+
+  .inner-tabs { display: flex; gap: 4px; margin-bottom: 1rem; flex-wrap: wrap; }
+  .inner-tab { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; padding: 6px 14px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text2); cursor: pointer; }
+  .inner-tab.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+  .standings-table { width: 100%; border-collapse: collapse; font-family: 'Helvetica Neue',Arial,sans-serif; }
+  .standings-table th { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text2); text-align: left; padding: 6px 8px; border-bottom: 0.5px solid var(--border); }
+  .standings-table td { padding: 7px 8px; font-size: 13px; border-bottom: 0.5px solid var(--border); color: var(--text); }
+  .standings-table tr:last-child td { border-bottom: none; }
+  .delta-up { color: var(--green); font-size: 11px; }
+  .delta-dn { color: var(--red); font-size: 11px; }
+
+  .output-box { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1rem; font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; font-family: 'Courier New',monospace; color: var(--text); margin-bottom: 8px; min-height: 80px; }
+  .copy-btn { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; padding: 5px 16px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text2); cursor: pointer; margin-bottom: 1.25rem; }
+  .copy-btn:hover { background: var(--bg2); color: var(--text); }
+  .refresh-btn { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; padding: 4px 12px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text2); cursor: pointer; margin-left: auto; flex-shrink: 0; }
+
+  .recent-table { width: 100%; border-collapse: collapse; font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; }
+  .recent-table th { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text2); text-align: left; padding: 5px 8px; border-bottom: 0.5px solid var(--border); }
+  .recent-table td { padding: 5px 8px; border-bottom: 0.5px solid var(--border); color: var(--text); }
+  .recent-table tr:last-child td { border-bottom: none; }
+  .pill { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 20px; text-transform: uppercase; font-family: 'Helvetica Neue',Arial,sans-serif; }
+  .pill-major { background: var(--gold-bg); color: var(--gold); }
+  .pill-sig { background: #e8f4fd; color: #185fa5; }
+  .pill-reg { background: var(--bg2); color: var(--text2); }
+
+  @media (max-width: 540px) {
+    .meta-grid { grid-template-columns: 1fr; }
+    .results-header, .result-row { grid-template-columns: 1.5fr 60px 75px 50px 50px 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>DEBO Cup</h1>
+    <p>Weekly update &amp; content generator</p>
+  </header>
+
+  <div class="status-bar">
+    <div class="status-dot loading" id="status-dot"></div>
+    <span id="status-text">Loading live data from Google Sheets...</span>
+    <button class="refresh-btn" onclick="loadAll()">Refresh</button>
+  </div>
+
+  <div class="top-tabs">
+    <button class="top-tab active" onclick="showTopTab('enter',this)">Enter results</button>
+    <button class="top-tab" onclick="showTopTab('history',this)">Recent results</button>
+    <button class="top-tab" onclick="showTopTab('live-standings',this)">Current standings</button>
+  </div>
+
+  <!-- ENTER RESULTS TAB -->
+  <div id="top-enter">
+
+    <div class="card">
+      <div class="section-label">Event details</div>
+      <div class="meta-grid">
+        <div class="field-group"><label>Tournament name</label><input type="text" id="evt-name" placeholder="e.g. Texas Children's Houston Open"></div>
+        <div class="field-group"><label>Event date</label><input type="date" id="evt-date"></div>
+        <div class="field-group"><label>Event type</label>
+          <select id="evt-type"><option value="Regular">Regular</option><option value="Signature">Signature</option><option value="Major">Major</option></select>
+        </div>
+        <div class="field-group"><label>Week # of season</label><input type="number" id="evt-week" placeholder="e.g. 11" min="1" max="33"></div>
+      </div>
+    </div>
+
+    <!-- CSV IMPORT -->
+    <div class="card">
+      <div class="section-label">Import from DraftKings CSV</div>
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('csv-file').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+        <input type="file" id="csv-file" accept=".csv" onchange="handleFile(this.files[0])">
+        <div class="dz-icon">&#8659;</div>
+        <div class="dz-title">Drop DraftKings contest CSV here</div>
+        <div class="dz-sub">or click to browse — download from your DK contest results page</div>
+      </div>
+      <div id="import-preview" style="display:none; margin-top:1rem;">
+        <div id="import-table-wrap"></div>
+        <div id="unmatched-warn" style="display:none;"></div>
+        <button class="add-btn" style="margin-top:12px;" onclick="confirmImport()">Confirm import &amp; populate results</button>
+      </div>
+    </div>
+
+    <!-- MANUAL RESULTS (populated by import or manual entry) -->
+    <div class="card">
+      <div class="section-label">Results — finish order + DK fantasy points</div>
+      <div class="results-header">
+        <span>Player</span><span>Finish</span><span>DK pts</span><span>DC pts</span><span>Prize</span><span></span>
+      </div>
+      <div id="rows-container"></div>
+      <button class="add-btn" onclick="addRow()">+ Add player</button>
+    </div>
+
+    <button class="calc-btn" id="calc-btn" onclick="calculate()" disabled>Calculate &amp; generate content</button>
+
+    <div id="output-area" style="display:none;">
+      <div class="inner-tabs">
+        <button class="inner-tab active" onclick="showInnerTab('standings',this)">Updated standings</button>
+        <button class="inner-tab" onclick="showInnerTab('sheet',this)">Sheet data</button>
+        <button class="inner-tab" onclick="showInnerTab('recap',this)">Recap post</button>
+        <button class="inner-tab" onclick="showInnerTab('xthread',this)">X thread</button>
+      </div>
+      <div id="itab-standings"><div class="card" style="padding:0.75rem;"><table class="standings-table" id="standings-tbl"></table></div></div>
+      <div id="itab-sheet" style="display:none;">
+        <div class="section-label">RESULTS tab — paste these rows</div>
+        <div class="output-box" id="sheet-results"></div>
+        <button class="copy-btn" onclick="copyEl('sheet-results',this)">Copy</button>
+        <div class="section-label">EVENT SUMMARIES tab — one new row</div>
+        <div class="output-box" id="sheet-summary"></div>
+        <button class="copy-btn" onclick="copyEl('sheet-summary',this)">Copy</button>
+      </div>
+      <div id="itab-recap" style="display:none;">
+        <div class="section-label">Weekly recap — website / group chat</div>
+        <div class="output-box" id="recap-text"></div>
+        <button class="copy-btn" onclick="copyEl('recap-text',this)">Copy</button>
+      </div>
+      <div id="itab-xthread" style="display:none;">
+        <div class="section-label">X thread — ready to post</div>
+        <div class="output-box" id="xthread-text"></div>
+        <button class="copy-btn" onclick="copyEl('xthread-text',this)">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div id="top-history" style="display:none;">
+    <div class="card" style="padding:0.75rem;">
+      <div class="section-label" style="margin-bottom:12px;">2026 season results — live from Google Sheets</div>
+      <div id="history-content"><span style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">Loading...</span></div>
+    </div>
+  </div>
+
+  <!-- LIVE STANDINGS TAB -->
+  <div id="top-live-standings" style="display:none;">
+    <div class="card" style="padding:0.75rem;">
+      <div class="section-label" style="margin-bottom:12px;">Current season standings — live from Google Sheets</div>
+      <table class="standings-table" id="live-standings-tbl"></table>
+    </div>
+  </div>
+
+</div>
+<script>
+const CSV_STANDINGS = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRaybJx6Qj9kuRlJ_7pUEsES8io67j9v1OxnaLB8ciaJJEcKXHwsVlXRN3PGp6EfjudFO2yi5RpWcPu/pub?gid=494949199&single=true&output=csv';
+const CSV_RESULTS   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRaybJx6Qj9kuRlJ_7pUEsES8io67j9v1OxnaLB8ciaJJEcKXHwsVlXRN3PGp6EfjudFO2yi5RpWcPu/pub?gid=0&single=true&output=csv';
+
+const DC_PTS = {1:25,2:15,3:10,4:7,5:5,6:4,7:3,8:2,9:1,10:1};
+const PRIZE  = {1:10,2:5,3:3,4:2};
+
+// DK username → DEBO Cup player name mapping
+// Update this map as new players join or usernames change
+const DK_USERNAME_MAP = {
+  'mknob87':        'MK',
+  'WoodrowP':       'Woody',
+  'atan76':        'Anth',
+  'DrLoomis72':    'Loomis',
+  'bhscott96':      'Brad',
+  'decamp26':       'DeCampli',
+  'zach_mathias':   'Zach',
+  'croth20':        'Colin',
+  'Swicky92':       'Kyle',
+  'stepdaddystew69':'Stew',
+  'natewiley35':    'Wiley',
+  'b10boariu':      'Broc',
+  'bluke':          'B Luke',
+};
+
+let CURRENT_STANDINGS = {};
+let PLAYERS = [];
+let ALL_RESULTS = [];
+let pendingImport = [];
+
+function setStatus(state, msg) {
+  document.getElementById('status-dot').className = 'status-dot ' + state;
+  document.getElementById('status-text').textContent = msg;
+}
+
+function parseCSVText(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).map(line => {
+    const vals = []; let cur = '', inQ = false;
+    for (const ch of line) {
+      if (ch === '"') inQ = !inQ;
+      else if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    vals.push(cur.trim());
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = (vals[i]||'').replace(/^"|"$/g,'').trim());
+    return obj;
+  });
+}
+
+async function fetchCSV(url) {
+  const proxies = [
+    `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  ];
+  for (const p of proxies) {
+    try {
+      const res = await fetch(p, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) continue;
+      const text = await res.text();
+      if (text.includes(',')) return text;
+    } catch(e) { continue; }
+  }
+  throw new Error('All proxies failed');
+}
+
+async function loadAll() {
+  setStatus('loading', 'Loading live data from Google Sheets...');
+  document.getElementById('calc-btn').disabled = true;
+  let standingsOk = false, resultsOk = false;
+
+  try {
+    const text = await fetchCSV(CSV_STANDINGS);
+    const rows = parseCSVText(text);
+    CURRENT_STANDINGS = {}; PLAYERS = [];
+    rows.forEach(r => {
+      const p = r['Player'] || r['player'];
+      if (!p) return;
+      CURRENT_STANDINGS[p] = {
+        pts:    parseFloat(r['DC_Points']||r['DC Points']||0)||0,
+        prize:  parseFloat(r['Prize_$_Earned']||r['Prize $ Earned']||0)||0,
+        wins:   parseInt(r['Wins']||0)||0,
+        top3:   parseInt(r['Top_3s']||r['Top 3s']||0)||0,
+        events: parseInt(r['Events_Played']||r['Events Played']||0)||0,
+      };
+      PLAYERS.push(p);
+    });
+    if (!PLAYERS.length) throw new Error('No players');
+    rebuildSelects();
+    renderLiveStandings();
+    standingsOk = true;
+  } catch(e) { useFallback(); }
+
+  try {
+    const text = await fetchCSV(CSV_RESULTS);
+    ALL_RESULTS = parseCSVText(text);
+    renderHistory();
+    resultsOk = true;
+  } catch(e) {
+    document.getElementById('history-content').innerHTML =
+      `<p style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">Results feed unavailable.</p>`;
+  }
+
+  if (standingsOk && resultsOk)
+    setStatus('ok', `Live data loaded — ${PLAYERS.length} players · ${new Date().toLocaleTimeString()}`);
+  else if (standingsOk)
+    setStatus('ok', `Standings loaded (results feed unavailable) · ${new Date().toLocaleTimeString()}`);
+  else
+    setStatus('err', 'Could not reach Google Sheets — using fallback Week 10 standings');
+
+  document.getElementById('calc-btn').disabled = false;
+}
+
+function useFallback() {
+  CURRENT_STANDINGS = {
+    'Anth':     {pts:116,  prize:41, wins:3, top3:6,  events:10},
+    'MK':       {pts:96,   prize:29, wins:1, top3:4,  events:10},
+    'DeCampli': {pts:91,   prize:26, wins:1, top3:3,  events:9},
+    'Wiley':    {pts:73,   prize:21, wins:1, top3:4,  events:10},
+    'Kyle':     {pts:62.5, prize:15, wins:1, top3:2,  events:10},
+    'Woody':    {pts:61.5, prize:17, wins:1, top3:2,  events:10},
+    'Zach':     {pts:55,   prize:15, wins:1, top3:2,  events:9},
+    'Brad':     {pts:53,   prize:12, wins:0, top3:2,  events:10},
+    'Broc':     {pts:51,   prize:11, wins:0, top3:3,  events:10},
+    'Stew':     {pts:35,   prize:10, wins:1, top3:1,  events:9},
+    'Colin':    {pts:34,   prize:3,  wins:0, top3:1,  events:9},
+    'B Luke':   {pts:0,    prize:0,  wins:0, top3:0,  events:0},
+  };
+  PLAYERS = Object.keys(CURRENT_STANDINGS);
+  rebuildSelects();
+  renderLiveStandings();
+  document.getElementById('calc-btn').disabled = false;
+}
+
+// ── DraftKings CSV Import ──────────────────────────────────────────────────
+
+function handleDragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('drag-over'); }
+function handleDragLeave(e) { document.getElementById('drop-zone').classList.remove('drag-over'); }
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+}
+
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => parseDKCSV(e.target.result);
+  reader.readAsText(file);
+}
+
+function parseDKCSV(text) {
+  const rows = parseCSVText(text);
+  // Only keep rows with a valid Rank (actual contest entries)
+  const entries = rows.filter(r => r['Rank'] && !isNaN(parseFloat(r['Rank'])));
+
+  pendingImport = entries.map(r => {
+    const dk = (r['EntryName'] || '').trim();
+    const rank = parseFloat(r['Rank']);
+    const points = parseFloat(r['Points'] || r['FPTS'] || 0);
+    const matched = DK_USERNAME_MAP[dk] || null;
+    // Parse lineup: "G Brooks Koepka G Corey Conners ..." → "Brooks Koepka, Corey Conners, ..."
+    const lineupRaw = (r['Lineup'] || '').trim();
+    const lineup = lineupRaw
+      ? lineupRaw.split(/\s+G\s+/).map(s => s.replace(/^G\s+/, '').trim()).filter(Boolean).join(', ')
+      : '';
+    return { dk, rank, points, matched, lineup };
+  });
+
+  renderImportPreview();
+}
+
+function renderImportPreview() {
+  const unmatched = pendingImport.filter(r => !r.matched);
+  const html = `
+    <table class="import-table">
+      <thead><tr>
+        <th>#</th>
+        <th>DK username</th>
+        <th style="text-align:right">DK pts</th>
+        <th>DEBO player</th>
+        <th>Lineup</th>
+      </tr></thead>
+      <tbody>
+        ${pendingImport.map((r,i) => `
+          <tr>
+            <td><span class="rank-badge ${r.rank<=3?'rank-'+r.rank:''}">${r.rank}</span></td>
+            <td style="font-family:'Courier New',monospace;font-size:12px;">${r.dk}</td>
+            <td style="text-align:right;font-weight:600;">${r.points}</td>
+            <td>
+              ${r.matched
+                ? `<span class="match-ok">${r.matched}</span>`
+                : `<select onchange="pendingImport[${i}].matched=this.value" style="width:100%">
+                    <option value="">-- assign player --</option>
+                    ${PLAYERS.map(p=>`<option value="${p}">${p}</option>`).join('')}
+                   </select>`
+              }
+            </td>
+            <td style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">${r.lineup||'—'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+
+  document.getElementById('import-table-wrap').innerHTML = html;
+  document.getElementById('import-preview').style.display = 'block';
+
+  if (unmatched.length) {
+    document.getElementById('unmatched-warn').style.display = 'block';
+    document.getElementById('unmatched-warn').innerHTML =
+      `<strong>${unmatched.length} unmatched username${unmatched.length>1?'s':''}:</strong> ${unmatched.map(r=>r.dk).join(', ')} — assign them above, then confirm import. You can also add them permanently to the username map in the tool settings.`;
+  } else {
+    document.getElementById('unmatched-warn').style.display = 'none';
+  }
+}
+
+function confirmImport() {
+  // Clear existing rows
+  document.getElementById('rows-container').innerHTML = '';
+
+  // Sort by rank and populate
+  const sorted = [...pendingImport].sort((a,b) => a.rank - b.rank);
+  sorted.forEach(r => {
+    if (r.matched) addRow(r.matched, r.rank, r.points, r.lineup||'');
+  });
+
+  // Scroll to results section
+  document.getElementById('rows-container').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ── Manual row management ──────────────────────────────────────────────────
+
+function addRow(player='', finish='', dk='', lineup='') {
+  const div = document.createElement('div');
+  div.className = 'result-row';
+  div.innerHTML = `
+    <select class="p-sel"><option value="">-- player --</option>${PLAYERS.map(p=>`<option value="${p}"${p===player?' selected':''}>${p}</option>`).join('')}</select>
+    <input type="number" class="fin-inp" min="1" max="200" placeholder="1–100" value="${finish}">
+    <input type="number" class="dk-inp" placeholder="pts" value="${dk}" step="0.5">
+    <input type="hidden" class="lineup-inp" value="${lineup.replace(/"/g,'&quot;')}">
+    <span class="dc-out">—</span><span class="pr-out">—</span>
+    <button class="remove-btn" onclick="this.closest('.result-row').remove()">×</button>
+  `;
+  div.querySelector('.fin-inp').addEventListener('input', () => calcRow(div));
+  if (finish) calcRow(div);
+  document.getElementById('rows-container').appendChild(div);
+}
+
+function calcRow(row) {
+  const fin = parseInt(row.querySelector('.fin-inp').value);
+  const dcEl = row.querySelector('.dc-out');
+  const prEl = row.querySelector('.pr-out');
+  if (!isNaN(fin)) {
+    dcEl.textContent = DC_PTS[fin] !== undefined ? DC_PTS[fin] : '0';
+    prEl.textContent = PRIZE[fin] ? '$'+PRIZE[fin] : '—';
+    dcEl.style.color = fin <= 3 ? '#2d6a4f' : '#6b6a64';
+    dcEl.style.fontWeight = fin <= 3 ? '700' : '600';
+  } else { dcEl.textContent = '—'; prEl.textContent = '—'; }
+}
+
+function getRows() {
+  return Array.from(document.querySelectorAll('#rows-container .result-row')).map(row => ({
+    player: row.querySelector('.p-sel').value,
+    finish: parseInt(row.querySelector('.fin-inp').value),
+    dk:     parseFloat(row.querySelector('.dk-inp').value) || 0,
+    lineup: row.querySelector('.lineup-inp')?.value || '',
+    dcPts:  DC_PTS[parseInt(row.querySelector('.fin-inp').value)] || 0,
+    prize:  PRIZE[parseInt(row.querySelector('.fin-inp').value)] || 0,
+  })).filter(r => r.player && !isNaN(r.finish));
+}
+
+// ── Calculate & generate ───────────────────────────────────────────────────
+
+function calculate() {
+  const rows = getRows();
+  if (!rows.length) { alert('Enter at least one result first.'); return; }
+  const evtName = document.getElementById('evt-name').value || 'Tournament';
+  const evtDate = document.getElementById('evt-date').value || '';
+  const evtType = document.getElementById('evt-type').value;
+  const evtWeek = document.getElementById('evt-week').value || '?';
+
+  rows.sort((a,b) => a.finish - b.finish);
+  const winner = rows.find(r => r.finish === 1);
+  const top3 = rows.filter(r => r.finish <= 3);
+
+  const newS = {};
+  for (const [p,s] of Object.entries(CURRENT_STANDINGS)) newS[p] = {...s};
+  for (const r of rows) {
+    if (!newS[r.player]) newS[r.player] = {pts:0,prize:0,wins:0,top3:0,events:0};
+    newS[r.player].pts += r.dcPts; newS[r.player].prize += r.prize; newS[r.player].events += 1;
+    if (r.finish === 1) newS[r.player].wins += 1;
+    if (r.finish <= 3) newS[r.player].top3 += 1;
+  }
+
+  const oldRanks = Object.entries(CURRENT_STANDINGS).sort((a,b)=>b[1].pts-a[1].pts).map(e=>e[0]);
+  const sorted = Object.entries(newS).sort((a,b)=>b[1].pts-a[1].pts);
+  const newRanks = sorted.map(e=>e[0]);
+
+  document.getElementById('standings-tbl').innerHTML =
+    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Earned</th></tr></thead><tbody>` +
+    sorted.map(([p,s],i) => {
+      const delta = (oldRanks.indexOf(p)+1)-(i+1);
+      const dHtml = delta>0?` <span class="delta-up">▲${delta}</span>`:delta<0?` <span class="delta-dn">▼${Math.abs(delta)}</span>`:'';
+      const badge = i<3?['rank-1','rank-2','rank-3'][i]:'';
+      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${p}${dHtml}</td><td style="text-align:right;font-weight:600">${s.pts}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">$${s.prize}</td></tr>`;
+    }).join('') + `</tbody>`;
+
+  const dateStr = evtDate || 'TBD';
+  const slug = evtName.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+  const seasonId = `2026 Regular__${dateStr.replace(/-/g,'')}__${slug}`;
+  const podium = top3.map(r=>`${r.finish}${['st','nd','rd'][r.finish-1]}: ${r.player} (${r.dk} DK pts)`).join(' | ');
+  const leader = sorted[0];
+  const gap = sorted.length > 1 ? sorted[0][1].pts - sorted[1][1].pts : 0;
+  const movers = rows.filter(r => (oldRanks.indexOf(r.player)-newRanks.indexOf(r.player)) >= 2);
+
+  document.getElementById('sheet-results').textContent =
+    rows.map(r=>`${seasonId}\t${dateStr}\t2026 Regular\t${evtName}\t${r.player}\t${r.finish}\t${r.dk}\tFALSE\t${evtType}\t${r.lineup}`).join('\n');
+  document.getElementById('sheet-summary').textContent =
+    `${seasonId}\t${dateStr}\t2026 Regular\t${evtName}\t${evtType==='Major'}\t${winner?.player||''}\t${winner?.dk||''}\t${rows.length}\t${evtType}`;
+  document.getElementById('recap-text').textContent =
+`DEBO Cup | Week ${evtWeek} recap — ${evtName}
+${evtType==='Major'?'\n[ MAJOR EVENT ]\n':''}
+${winner?`${winner.player} takes the W at ${evtName} with ${winner.dk} DK points${evtType==='Major'?' — and banks a Major win!':'.'}`:''}
+
+Podium: ${podium}
+
+Standings leader: ${leader[0]} — ${leader[1].pts} DC points${gap>0?`, leading by ${gap} over ${sorted[1][0]}`:''}.${movers.length?`\nBig movers: ${movers.map(r=>`${r.player} climbs ${oldRanks.indexOf(r.player)-newRanks.indexOf(r.player)} spots`).join(', ')}.`:''}
+
+Week ${evtWeek} of 33 complete. ${33-parseInt(evtWeek)} events remain in the 2026 season.`;
+  document.getElementById('xthread-text').textContent =
+`Week ${evtWeek} results are in. ${evtName} is done. [1/4]
+
+---
+
+${winner?`WINNER: ${winner.player} fires ${winner.dk} DK points to claim Week ${evtWeek}.${top3.slice(1).length?` ${top3.slice(1).map(r=>`${r.player} (${['','2nd','3rd'][r.finish]})`).join(', ')} round out the top 3.`:''}`:''} 
+
+---
+
+STANDINGS — Top 5 after Wk ${evtWeek}:
+${sorted.slice(0,5).map(([p,s],i)=>`${i+1}. ${p} — ${s.pts} pts`).join('\n')}
+
+---
+
+${leader[0]} leads the DEBO Cup by ${gap} points with ${33-parseInt(evtWeek)} weeks left. Follow along at debocup.com #DEBOCup`;
+
+  document.getElementById('output-area').style.display = 'block';
+  document.getElementById('output-area').scrollIntoView({behavior:'smooth'});
+}
+
+// ── Standings & history views ──────────────────────────────────────────────
+
+function renderLiveStandings() {
+  const sorted = Object.entries(CURRENT_STANDINGS).sort((a,b) => b[1].pts - a[1].pts);
+  document.getElementById('live-standings-tbl').innerHTML =
+    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Earned</th><th style="text-align:right">Events</th></tr></thead><tbody>` +
+    sorted.map(([p,s],i) => {
+      const badge = i<3?['rank-1','rank-2','rank-3'][i]:'';
+      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${p}</td><td style="text-align:right;font-weight:600">${s.pts}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">$${s.prize}</td><td style="text-align:right;color:var(--text2)">${s.events}</td></tr>`;
+    }).join('') + `</tbody>`;
+}
+
+function renderHistory() {
+  const season2026 = ALL_RESULTS.filter(r => (r['Season']||'').includes('2026'));
+  const byEvent = {};
+  season2026.forEach(r => {
+    const evt = r['Event']||r['event'];
+    if (!evt) return;
+    if (!byEvent[evt]) byEvent[evt] = { date: r['Date']||'', type: r['Event Type']||'Regular', rows: [] };
+    byEvent[evt].rows.push(r);
+  });
+  const eventList = Object.entries(byEvent).sort((a,b) => b[1].date > a[1].date ? 1 : -1);
+  if (!eventList.length) {
+    document.getElementById('history-content').innerHTML =
+      `<p style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">No 2026 results found.</p>`;
+    return;
+  }
+  document.getElementById('history-content').innerHTML = eventList.map(([evt,data],idx) => {
+    const sorted = [...data.rows].sort((a,b)=>parseInt(a['Finish']||99)-parseInt(b['Finish']||99));
+    const pillClass = data.type==='Major'?'pill-major':data.type==='Signature'?'pill-sig':'pill-reg';
+    const rows = sorted.slice(0,5).map(r=>
+      `<tr><td style="color:var(--text2);width:28px">${r['Finish']}</td><td style="font-weight:${parseInt(r['Finish'])<=3?'600':'400'}">${r['Player']||''}</td><td style="text-align:right;color:var(--text2)">${r['Fantasy_Points']||'—'}</td></tr>`
+    ).join('');
+    return `${idx>0?'<hr style="border:none;border-top:0.5px solid var(--border);margin-bottom:1.25rem;">':''}
+    <div style="margin-bottom:1.25rem;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:600;font-family:'Helvetica Neue',Arial,sans-serif;">${evt}</span>
+        <span class="pill ${pillClass}">${data.type}</span>
+        <span style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-left:auto;">${data.date}</span>
+      </div>
+      <table class="recent-table"><thead><tr><th>#</th><th>Player</th><th style="text-align:right">DK pts</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+  }).join('');
+}
+
+function rebuildSelects() {
+  document.querySelectorAll('.p-sel').forEach(sel => {
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">-- player --</option>` +
+      PLAYERS.map(p=>`<option value="${p}"${p===cur?' selected':''}>${p}</option>`).join('');
+  });
+}
+
+function showTopTab(name, btn) {
+  ['enter','history','live-standings'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
+  document.querySelectorAll('.top-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function showInnerTab(name, btn) {
+  ['standings','sheet','recap','xthread'].forEach(t=>document.getElementById('itab-'+t).style.display=t===name?'':'none');
+  document.querySelectorAll('.inner-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function copyEl(id, btn) {
+  navigator.clipboard.writeText(document.getElementById(id).textContent).then(() => {
+    const orig = btn.textContent; btn.textContent = 'Copied!';
+    setTimeout(()=>btn.textContent=orig, 1500);
+  });
+}
+
+loadAll();
+</script>
+</body>
+</html>
