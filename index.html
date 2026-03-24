@@ -256,12 +256,17 @@
       <div class="section-label">Step 3 — Projected cut line</div>
       <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">Auto-filled from screenshot if Claude can read them, or enter manually.</p>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:8px;">
-        <div class="field-group"><label>Cut score (e.g. E or +2)</label><input type="text" id="cut-score" placeholder="e.g. E"></div>
-        <div class="field-group"><label>Score -1 make cut %</label><input type="text" id="cut-minus1" placeholder="e.g. 94.2%"></div>
-        <div class="field-group"><label>Score E make cut %</label><input type="text" id="cut-even" placeholder="e.g. 62.1%"></div>
-        <div class="field-group"><label>Score +1 make cut %</label><input type="text" id="cut-plus1" placeholder="e.g. 28.4%"></div>
-        <div class="field-group"><label>Score +2 make cut %</label><input type="text" id="cut-plus2" placeholder="e.g. 5.1%"></div>
         <div class="field-group"><label>Tournament (round)</label><input type="text" id="cut-tournament" placeholder="e.g. Houston Open (R2)"></div>
+        <div></div><div></div>
+        <div class="field-group"><label>Cut line score 1</label><input type="text" id="cut-s1" placeholder="e.g. -1"></div>
+        <div class="field-group"><label>Make cut % 1</label><input type="text" id="cut-p1" placeholder="e.g. 94.2%"></div>
+        <div></div>
+        <div class="field-group"><label>Cut line score 2</label><input type="text" id="cut-s2" placeholder="e.g. E"></div>
+        <div class="field-group"><label>Make cut % 2</label><input type="text" id="cut-p2" placeholder="e.g. 42.8%"></div>
+        <div></div>
+        <div class="field-group"><label>Cut line score 3</label><input type="text" id="cut-s3" placeholder="e.g. +1"></div>
+        <div class="field-group"><label>Make cut % 3</label><input type="text" id="cut-p3" placeholder="e.g. 10.7%"></div>
+        <div></div>
       </div>
     </div>
 
@@ -844,14 +849,13 @@ Return only valid JSON, nothing else.`
 
     // Apply cut line odds to form fields
     if (parsed.cut_lines && parsed.cut_lines.length) {
-      // Try to fill in the cut line fields
-      parsed.cut_lines.forEach(cl => {
-        const score = cl.score?.toString().trim();
-        const pct = cl.pct?.toString().trim();
-        if (score === '-1') document.getElementById('cut-minus1').value = pct;
-        else if (score === 'E' || score === '0') document.getElementById('cut-even').value = pct;
-        else if (score === '+1' || score === '1') document.getElementById('cut-plus1').value = pct;
-        else if (score === '+2' || score === '2') document.getElementById('cut-plus2').value = pct;
+      const cls = parsed.cut_lines.slice(0, 3);
+      cls.forEach((cl, i) => {
+        const n = i + 1;
+        const sEl = document.getElementById('cut-s' + n);
+        const pEl = document.getElementById('cut-p' + n);
+        if (sEl) sEl.value = cl.score?.toString().trim() || '';
+        if (pEl) pEl.value = cl.pct?.toString().trim() || '';
       });
     }
 
@@ -976,11 +980,12 @@ function getStatus(makeCutPct) {
 
 function generateCutSweat() {
   const tournament = document.getElementById('cut-tournament').value || 'Tournament';
-  const cutScore = document.getElementById('cut-score').value || '';
-  const cutMinus1 = document.getElementById('cut-minus1').value || '';
-  const cutEven = document.getElementById('cut-even').value || '';
-  const cutPlus1 = document.getElementById('cut-plus1').value || '';
-  const cutPlus2 = document.getElementById('cut-plus2').value || '';
+  const cutS1 = document.getElementById('cut-s1').value || '';
+  const cutP1 = document.getElementById('cut-p1').value || '';
+  const cutS2 = document.getElementById('cut-s2').value || '';
+  const cutP2 = document.getElementById('cut-p2').value || '';
+  const cutS3 = document.getElementById('cut-s3').value || '';
+  const cutP3 = document.getElementById('cut-p3').value || '';
 
   const rows = Array.from(document.querySelectorAll('#cut-sweat-tbody tr'));
 
@@ -1001,10 +1006,9 @@ function generateCutSweat() {
 
   // Build cut line odds for text post
   const cutLines = [];
-  if (cutMinus1) cutLines.push('• -1 → ' + cutMinus1);
-  if (cutEven)   cutLines.push('• E → ' + cutEven);
-  if (cutPlus1)  cutLines.push('• +1 → ' + cutPlus1);
-  if (cutPlus2)  cutLines.push('• +2 → ' + cutPlus2);
+  if (cutS1 && cutP1) cutLines.push('• ' + cutS1 + ' → ' + cutP1);
+  if (cutS2 && cutP2) cutLines.push('• ' + cutS2 + ' → ' + cutP2);
+  if (cutS3 && cutP3) cutLines.push('• ' + cutS3 + ' → ' + cutP3);
 
   const cutLinesStr = cutLines.join('\n');
   const post = '🚨 CUT SWEAT 🚨\n\nProjected Cut Line (via DataGolf):\n\n' + cutLinesStr + '\n\ndebocup.com';
