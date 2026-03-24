@@ -920,21 +920,11 @@ function generatePreviewPost() {
 
   if (!lockTime) { alert('Please enter the lineup lock time.'); return; }
 
-  const post = week + ' — ' + tournament + '. ⛳
-
-' +
-    'Lineups lock ' + (lockTime.toLowerCase().includes('tomorrow') ? lockTime : 'tomorrow at ' + lockTime) + '.
-
-' +
-    'DEBO Cup Winners at ' + (course.split(' ')[0] || tournament.split(' ')[0]) + ':
-' +
-    pastWinnersText + '
-
-' +
-    (deboChamp ? 'Defending DEBO champion: ' + deboChamp + '. Can they repeat?
-
-' : '') +
-    'debocup.com';
+  const lockStr = lockTime.toLowerCase().includes('tomorrow') ? lockTime : 'tomorrow at ' + lockTime;
+  const courseShort = course.split(' ')[0] || tournament.split(' ')[0];
+  const deboLine = deboChamp ? ('Defending DEBO champion: ' + deboChamp + '. Can they repeat?') : '';
+  const postParts = [week + ' — ' + tournament + '. ⛳', 'Lineups lock ' + lockStr + '.', 'DEBO Cup Winners at ' + courseShort + ':', pastWinnersText, deboLine, 'debocup.com'].filter(Boolean);
+  const post = postParts.join('\n\n');
 
   document.getElementById('preview-post-text').textContent = post;
   document.getElementById('preview-output').style.display = 'block';
