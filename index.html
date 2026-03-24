@@ -135,6 +135,7 @@
 
   <div class="top-tabs">
     <button class="top-tab active" onclick="showTopTab('enter',this)">Enter results</button>
+    <button class="top-tab" onclick="showTopTab('cutsweat',this)">Cut sweat</button>
     <button class="top-tab" onclick="showTopTab('history',this)">Recent results</button>
     <button class="top-tab" onclick="showTopTab('live-standings',this)">Current standings</button>
   </div>
@@ -227,6 +228,71 @@
         <button class="copy-btn" onclick="copyEl('xthread-text',this)">Copy</button>
       </div>
     </div>
+  </div>
+
+  <!-- CUT SWEAT TAB -->
+  <div id="top-cutsweat" style="display:none;">
+
+    <div class="card">
+      <div class="section-label">Step 1 — Golfer list for DataGolf</div>
+      <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">Paste this into DataGolf's live tracker. Import your DK CSV first to populate this list.</p>
+      <div class="output-box" id="golfer-csv-list" style="min-height:48px;">Import a DK CSV first to generate the golfer list.</div>
+      <button class="copy-btn" onclick="copyEl('golfer-csv-list',this)">Copy golfer list</button>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Step 2 — Upload DataGolf screenshot</div>
+      <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">Screenshot the DataGolf page after entering your golfers. Claude will extract all scores and cut odds automatically.</p>
+      <div class="drop-zone" id="dg-drop-zone" onclick="document.getElementById('dg-screenshot').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDGDrop(event)" style="padding:1.25rem;">
+        <input type="file" id="dg-screenshot" accept="image/*" onchange="handleDGFile(this.files[0])">
+        <div class="dz-icon">&#128247;</div>
+        <div class="dz-title" id="dg-drop-title">Drop DataGolf screenshot here</div>
+        <div class="dz-sub">or click to browse</div>
+      </div>
+      <div id="dg-parse-status" style="display:none;margin-top:10px;font-size:12px;font-family:'Helvetica Neue',Arial,sans-serif;color:var(--text2);"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Step 3 — Projected cut line</div>
+      <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">Auto-filled from screenshot if Claude can read them, or enter manually.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:8px;">
+        <div class="field-group"><label>Cut score (e.g. E or +2)</label><input type="text" id="cut-score" placeholder="e.g. E"></div>
+        <div class="field-group"><label>Score -1 make cut %</label><input type="text" id="cut-minus1" placeholder="e.g. 94.2%"></div>
+        <div class="field-group"><label>Score E make cut %</label><input type="text" id="cut-even" placeholder="e.g. 62.1%"></div>
+        <div class="field-group"><label>Score +1 make cut %</label><input type="text" id="cut-plus1" placeholder="e.g. 28.4%"></div>
+        <div class="field-group"><label>Score +2 make cut %</label><input type="text" id="cut-plus2" placeholder="e.g. 5.1%"></div>
+        <div class="field-group"><label>Tournament (round)</label><input type="text" id="cut-tournament" placeholder="e.g. Houston Open (R2)"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Step 4 — Golfer cut status</div>
+      <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">Enter each golfer's current score to-par. Ownership is calculated automatically from imported lineups.</p>
+      <div id="cut-sweat-table-wrap">
+        <table style="width:100%;border-collapse:collapse;font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;" id="cut-sweat-tbl">
+          <thead><tr>
+            <th style="text-align:left;padding:5px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Golfer</th>
+            <th style="text-align:center;padding:5px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Score</th>
+            <th style="text-align:center;padding:5px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Ownership</th>
+            <th style="text-align:center;padding:5px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Owners</th>
+            <th style="text-align:center;padding:5px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Bold?</th>
+          </tr></thead>
+          <tbody id="cut-sweat-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <button class="calc-btn" onclick="generateCutSweat()">Generate cut sweat post</button>
+
+    <div id="cut-sweat-output" style="display:none;">
+      <div class="card">
+        <div class="section-label">X post — cut sweat</div>
+        <div class="output-box" id="cut-sweat-post"></div>
+        <button class="copy-btn" onclick="copyEl('cut-sweat-post',this)">Copy</button>
+        <p style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-top:8px;">Attach your DataGolf screenshot when posting to X.</p>
+      </div>
+    </div>
+
   </div>
 
   <!-- HISTORY TAB -->
@@ -670,11 +736,7 @@ function rebuildSelects() {
   });
 }
 
-function showTopTab(name, btn) {
-  ['enter','history','live-standings'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
-  document.querySelectorAll('.top-tab').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-}
+// showTopTab redefined in Cut Sweat section
 
 function showInnerTab(name, btn) {
   ['standings','sheet','recap','xthread'].forEach(t=>document.getElementById('itab-'+t).style.display=t===name?'':'none');
@@ -691,6 +753,286 @@ function copyEl(id, btn) {
 
 loadAll();
 loadApiKey();
+
+// ── DataGolf Screenshot Parser ────────────────────────────────────────────
+
+function handleDGDrop(e) {
+  e.preventDefault();
+  document.getElementById('dg-drop-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleDGFile(file);
+}
+
+function handleDGFile(file) {
+  if (!file) return;
+  const apiKey = localStorage.getItem('claude_api_key');
+  if (!apiKey) {
+    alert('Please enter your Claude API key in the Recap Post tab first.');
+    return;
+  }
+  const status = document.getElementById('dg-parse-status');
+  status.style.display = 'block';
+  status.textContent = 'Reading screenshot with Claude...';
+  document.getElementById('dg-drop-title').textContent = file.name;
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const base64 = e.target.result.split(',')[1];
+    const mediaType = file.type || 'image/png';
+    await parseDGScreenshot(base64, mediaType, apiKey, status);
+  };
+  reader.readAsDataURL(file);
+}
+
+async function parseDGScreenshot(base64, mediaType, apiKey, statusEl) {
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: mediaType, data: base64 }
+            },
+            {
+              type: 'text',
+              text: `This is a DataGolf cut line tracker screenshot. Extract the following data and return it as JSON only, no explanation:
+
+1. "cut_lines": array of objects with "score" (e.g. "-1", "E", "+1") and "pct" (e.g. "85.6%") — the projected cut line odds shown at the top or as a summary
+2. "golfers": array of objects with:
+   - "name": full golfer name as shown (First Last format, e.g. "Davis Thompson")
+   - "score": their current score to par as a string (e.g. "-5", "E", "+2", "WD")
+   - "make_cut_pct": their make cut probability as shown (e.g. "98.6%")
+
+For golfer names: the table shows LASTNAME Firstname — convert to Firstname Lastname format.
+Return only valid JSON, nothing else.`
+            }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error?.message || 'API error');
+    }
+
+    const data = await response.json();
+    const text = data.content[0]?.text || '';
+    
+    // Parse JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Could not parse response');
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    // Apply cut line odds to form fields
+    if (parsed.cut_lines && parsed.cut_lines.length) {
+      // Try to fill in the cut line fields
+      parsed.cut_lines.forEach(cl => {
+        const score = cl.score?.toString().trim();
+        const pct = cl.pct?.toString().trim();
+        if (score === '-1') document.getElementById('cut-minus1').value = pct;
+        else if (score === 'E' || score === '0') document.getElementById('cut-even').value = pct;
+        else if (score === '+1' || score === '1') document.getElementById('cut-plus1').value = pct;
+        else if (score === '+2' || score === '2') document.getElementById('cut-plus2').value = pct;
+      });
+    }
+
+    // Apply scores to the cut sweat table rows
+    if (parsed.golfers && parsed.golfers.length) {
+      const tableRows = document.querySelectorAll('#cut-sweat-tbody tr');
+      let matched = 0;
+      tableRows.forEach(row => {
+        const golferName = row.querySelector('td:first-child')?.textContent.trim();
+        // Try to match by last name or full name
+        const dgGolfer = parsed.golfers.find(g => {
+          const dgName = g.name?.toLowerCase() || '';
+          const rowName = golferName?.toLowerCase() || '';
+          // Match if last name matches or full name matches
+          const dgLastName = dgName.split(' ').pop();
+          const rowLastName = rowName.split(' ').pop();
+          return dgName === rowName || dgLastName === rowLastName || 
+                 dgName.includes(rowLastName) || rowName.includes(dgLastName);
+        });
+        if (dgGolfer) {
+          const scoreInp = row.querySelector('.score-inp');
+          if (scoreInp) { scoreInp.value = dgGolfer.score || ''; matched++; }
+        }
+      });
+      statusEl.textContent = `Screenshot parsed — ${matched} of ${tableRows.length} golfers matched. Review scores below and adjust any mismatches.`;
+      statusEl.style.color = matched > 0 ? '#2d6a4f' : '#9b2226';
+    } else {
+      statusEl.textContent = 'No golfer data found in screenshot. Enter scores manually.';
+      statusEl.style.color = '#9b2226';
+    }
+
+  } catch(e) {
+    statusEl.textContent = 'Could not parse screenshot: ' + e.message + '. Enter scores manually below.';
+    statusEl.style.color = '#9b2226';
+  }
+}
+
+// ── Cut Sweat ─────────────────────────────────────────────────────────────
+
+let cutSweatGolfers = {}; // golfer name -> {owners: [], ownerPct: 0}
+
+function buildCutSweatFromLineups() {
+  // Parse all lineups from result rows
+  const rows = document.querySelectorAll('#rows-container .result-row');
+  const totalPlayers = rows.length;
+  if (!totalPlayers) return;
+
+  const golferMap = {};
+  rows.forEach(row => {
+    const player = row.querySelector('.p-sel').value;
+    const lineup = row.querySelector('.lineup-inp')?.value || '';
+    if (!lineup || !player) return;
+    lineup.split(',').map(g => g.trim()).filter(Boolean).forEach(golfer => {
+      if (!golferMap[golfer]) golferMap[golfer] = [];
+      golferMap[golfer].push(player);
+    });
+  });
+
+  cutSweatGolfers = golferMap;
+
+  // Populate golfer CSV list
+  const golferList = Object.keys(golferMap).sort().join(', ');
+  document.getElementById('golfer-csv-list').textContent = golferList || 'No lineups found — import DK CSV first.';
+
+  // Build cut sweat table
+  const tbody = document.getElementById('cut-sweat-tbody');
+  tbody.innerHTML = '';
+  const sorted = Object.entries(golferMap).sort((a,b) => b[1].length - a[1].length);
+  const topOwned = sorted.slice(0,4).map(e => e[0]); // auto-bold top 4
+
+  sorted.forEach(([golfer, owners]) => {
+    const pct = Math.round((owners.length / totalPlayers) * 100);
+    const isBold = topOwned.includes(golfer);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);font-weight:${isBold?'600':'400'}">${golfer}</td>
+      <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;">
+        <input type="text" class="score-inp" placeholder="e.g. -3" style="width:70px;text-align:center;font-size:12px;padding:3px 6px;">
+      </td>
+      <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;color:var(--text2);">${pct}%</td>
+      <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;color:var(--text2);font-size:12px;">${owners.join(', ')}</td>
+      <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;">
+        <input type="checkbox" class="bold-chk" ${isBold?'checked':''} style="width:16px;height:16px;cursor:pointer;">
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Auto-build when switching to Cut Sweat tab
+const origShowTopTab = showTopTab;
+function showTopTab(name, btn) {
+  ['enter','cutsweat','history','live-standings'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
+  document.querySelectorAll('.top-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if (name === 'cutsweat') buildCutSweatFromLineups();
+}
+
+function parseScore(s) {
+  if (!s || s.trim() === '') return 999;
+  const clean = s.trim().toUpperCase();
+  if (clean === 'E' || clean === '0') return 0;
+  if (clean === 'WD' || clean === 'DQ' || clean === 'CUT') return 999;
+  return parseInt(clean.replace('+','')) || 0;
+}
+
+function generateCutSweat() {
+  const tournament = document.getElementById('cut-tournament').value || 'Tournament';
+  const cutScore = document.getElementById('cut-score').value || '';
+  const cutMinus1 = document.getElementById('cut-minus1').value || '';
+  const cutEven = document.getElementById('cut-even').value || '';
+  const cutPlus1 = document.getElementById('cut-plus1').value || '';
+  const cutPlus2 = document.getElementById('cut-plus2').value || '';
+
+  const rows = Array.from(document.querySelectorAll('#cut-sweat-tbody tr'));
+  const totalPlayers = document.querySelectorAll('#rows-container .result-row').length || 1;
+
+  const golfers = rows.map(row => {
+    const cells = row.querySelectorAll('td');
+    const name = cells[0]?.textContent.trim();
+    const score = cells[1]?.querySelector('.score-inp')?.value.trim() || '';
+    const pct = cells[2]?.textContent.trim();
+    const owners = cells[3]?.textContent.trim();
+    const bold = cells[4]?.querySelector('.bold-chk')?.checked || false;
+    return { name, score, scoreNum: parseScore(score), pct, owners, bold };
+  }).filter(g => g.name);
+
+  // Sort by score
+  golfers.sort((a,b) => a.scoreNum - b.scoreNum);
+
+  // Build cut line odds string
+  const cutLines = [];
+  if (cutMinus1) cutLines.push(`-1 → ${cutMinus1}`);
+  if (cutEven) cutLines.push(`E → ${cutEven}`);
+  if (cutPlus1) cutLines.push(`+1 → ${cutPlus1}`);
+  if (cutPlus2) cutLines.push(`+2 → ${cutPlus2}`);
+
+  // Build table rows
+  const tableRows = golfers.map(g => {
+    const name = g.bold ? `**${g.name}**` : g.name;
+    const score = g.score || '—';
+    const pctStr = g.bold ? `**${g.pct}**` : g.pct;
+    return `${name} (${score}) • ${pctStr}`;
+  });
+
+  // Split into safe/bubble/danger groups based on score
+  const safe = golfers.filter(g => g.scoreNum <= -2);
+  const bubble = golfers.filter(g => g.scoreNum > -2 && g.scoreNum <= 1);
+  const danger = golfers.filter(g => g.scoreNum > 1 && g.scoreNum < 900);
+  const dead = golfers.filter(g => g.scoreNum >= 900);
+
+  const formatGroup = (label, emoji, group) => {
+    if (!group.length) return '';
+    return `${emoji} ${label.toUpperCase()}
+` + group.map(g => {
+      const name = g.bold ? `${g.name} (${g.pct})` : `${g.name} (${g.pct})`;
+      return `${g.bold ? '→ ' : ''}${name} — ${g.score || '—'}`;
+    }).join('
+');
+  };
+
+  const sections = [
+    formatGroup('Safe', '🟢', safe),
+    formatGroup('Bubble', '🟡', bubble),
+    formatGroup('In trouble', '🔴', danger),
+    dead.length ? `💀 DEAD
+${dead.map(g=>`${g.name} — ${g.score||'—'}`).join('
+')}` : ''
+  ].filter(Boolean).join('
+
+');
+
+  const post = `🚨 CUT SWEAT 🚨
+${tournament}
+
+Projected cut: ${cutScore}
+${cutLines.join('
+')}
+
+${sections}
+
+debocup.com`;
+
+  document.getElementById('cut-sweat-post').textContent = post;
+  document.getElementById('cut-sweat-output').style.display = 'block';
+  document.getElementById('cut-sweat-output').scrollIntoView({behavior:'smooth'});
+}
+
 // ── AI Recap Generator ────────────────────────────────────────────────────
 
 let lastCalculatedData = null;
