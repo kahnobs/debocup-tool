@@ -1010,20 +1010,10 @@ function generateCutSweat() {
     formatGroup('Bubble', '🟡', bubble),
     formatGroup('In trouble', '🔴', danger),
     dead.length ? '💀 DEAD\n' + dead.map(g => g.name + ' — ' + (g.score||'—')).join('\n') : ''
-  ].filter(Boolean).join('
+  ].filter(Boolean).join('\n\n');
 
-');
-
-  const post = `🚨 CUT SWEAT 🚨
-${tournament}
-
-Projected cut: ${cutScore}
-${cutLines.join('
-')}
-
-${sections}
-
-debocup.com`;
+  const cutLinesStr = cutLines.join('\n');
+  const post = '🚨 CUT SWEAT 🚨\n' + tournament + '\n\nProjected cut: ' + cutScore + '\n' + cutLinesStr + '\n\n' + sections + '\n\ndebocup.com';
 
   document.getElementById('cut-sweat-post').textContent = post;
   document.getElementById('cut-sweat-output').style.display = 'block';
