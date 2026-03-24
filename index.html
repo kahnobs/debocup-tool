@@ -998,21 +998,18 @@ function generateCutSweat() {
 
   const formatGroup = (label, emoji, group) => {
     if (!group.length) return '';
-    return `${emoji} ${label.toUpperCase()}
-` + group.map(g => {
-      const name = g.bold ? `${g.name} (${g.pct})` : `${g.name} (${g.pct})`;
-      return `${g.bold ? '→ ' : ''}${name} — ${g.score || '—'}`;
-    }).join('
-');
+    const groupLines = group.map(g => {
+      const name = g.name + ' (' + g.pct + ')';
+      return (g.bold ? '→ ' : '') + name + ' — ' + (g.score || '—');
+    }).join('\n');
+    return emoji + ' ' + label.toUpperCase() + '\n' + groupLines;
   };
 
   const sections = [
     formatGroup('Safe', '🟢', safe),
     formatGroup('Bubble', '🟡', bubble),
     formatGroup('In trouble', '🔴', danger),
-    dead.length ? `💀 DEAD
-${dead.map(g=>`${g.name} — ${g.score||'—'}`).join('
-')}` : ''
+    dead.length ? '💀 DEAD\n' + dead.map(g => g.name + ' — ' + (g.score||'—')).join('\n') : ''
   ].filter(Boolean).join('
 
 ');
