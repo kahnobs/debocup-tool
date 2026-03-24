@@ -324,7 +324,7 @@ async function loadAll() {
       if (!p) return;
       CURRENT_STANDINGS[p] = {
         pts:    parseFloat(r['DC_Points']||r['DC Points']||0)||0,
-        prize:  parseFloat(r['Prize_$_Earned']||r['Prize $ Earned']||0)||0,
+        prize:  parseFloat((r['Prize_$_Earned']||r['Prize $ Earned']||'0').toString().replace(/[$,]/g,''))||0,
         wins:   parseInt(r['Wins']||0)||0,
         top3:   parseInt(r['Top_3s']||r['Top 3s']||0)||0,
         events: parseInt(r['Events_Played']||r['Events Played']||0)||0,
