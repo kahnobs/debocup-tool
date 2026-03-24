@@ -731,34 +731,55 @@ async function generateAIRecap() {
   document.getElementById('recap-text').textContent = 'Writing recap...';
 
   const d = lastCalculatedData;
-  const prompt = `You write short, punchy X (Twitter) posts for the DEBO Cup — a private fantasy golf league among friends. 
-The tone is like a sports beat writer who knows all the players personally. Direct, a little cheeky, never corporate. 
-Keep it under 220 characters total so it fits in one tweet.
+  const prompt = `You write Monday morning recap posts for the DEBO Cup, a private fantasy golf league among friends. Match this format EXACTLY — no exceptions:
 
-Write a Monday morning recap post for this week's result. Include:
-- The tournament name and PGA Tour winner (if provided)
-- The DEBO Cup winner and their DK score
-- One line of narrative about the standings race or a notable storyline
-- End with "debocup.com" on its own line
+EXAMPLE POST 1:
+Valspar Championship 🏆
 
-Here is the week's data:
+PGA TOUR Winner: Matt Fitzpatrick
+DEBO Cup Winner: MK
+
+MK secures his first win of the season.
+
+Standings updated 👇
+debocup.com
+
+EXAMPLE POST 2:
+Phoenix Open 🏆
+
+PGA TOUR Winner: Thomas Detry
+DEBO Cup Winner: Anth
+
+Anth extends his lead at the top with his third win of the year.
+
+Standings updated 👇
+debocup.com
+
+RULES:
+- Line 1: Tournament name + 🏆
+- Line 2: blank
+- Line 3: "PGA TOUR Winner: [name]" (skip this line entirely if no PGA winner provided)
+- Line 4: "DEBO Cup Winner: [player]"
+- Line 5: blank
+- Line 6: ONE sentence about the winner or standings. Keep it under 12 words. Reference their season record or standings impact. Never use the word "tightest" or "edges". Be direct, not dramatic.
+- Line 7: blank
+- Line 8: "Standings updated 👇"
+- Line 9: "debocup.com"
+
+Do not add anything else. No hashtags. No extra lines. No fluff.
+
+DATA:
 Tournament: ${d.evtName}
-Week: ${d.evtWeek} of 33
-Event type: ${d.evtType}
-${d.pgaWinner ? 'PGA Tour winner: ' + d.pgaWinner : ''}
-
-DEBO Cup results:
-${d.top3.map(r => `${r.finish === 1 ? 'WINNER' : r.finish === 2 ? '2nd' : '3rd'}: ${r.player} (${r.dk} DK pts)`).join('\n')}
-
-Current standings (top 5):
-${d.top5.map(([p,s],i) => `${i+1}. ${p} — ${s.pts} DC pts`).join('\n')}
-
-Standings leader: ${d.leader} — leading by ${d.gap} points over ${d.second}
+${d.pgaWinner ? 'PGA TOUR Winner: ' + d.pgaWinner : 'No PGA winner provided — skip that line'}
+DEBO Cup Winner: ${d.top3[0]?.player || ''}
+Winner DK score: ${d.top3[0]?.dk || ''}
+Winner season wins: ${d.top3[0] ? (lastCalculatedData.top5.find(([p]) => p === d.top3[0].player)?.[1]?.wins || '') : ''}
+Standings leader: ${d.leader} (${d.gap} point lead over ${d.second})
 Events remaining: ${33 - parseInt(d.evtWeek)}
-${d.movers.length ? 'Notable movers: ' + d.movers.join(', ') : ''}
-${d.evtType === 'Major' ? 'NOTE: This was a Major event — winner earned $30 prize bonus.' : ''}
+${d.evtType === 'Major' ? 'This was a Major — winner earned $30 bonus prize.' : ''}
+${d.movers.length ? 'Notable: ' + d.movers.join(', ') : ''}
 
-Write only the tweet text, no quotes, no explanation.`;
+Write only the post text. Nothing else.`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
