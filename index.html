@@ -95,6 +95,14 @@
   .copy-btn:hover { background: var(--bg2); color: var(--text); }
   .refresh-btn { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; padding: 4px 12px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text2); cursor: pointer; margin-left: auto; flex-shrink: 0; }
 
+  .push-btn { width: 100%; padding: 12px; font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; border: 2px solid #2d6a4f; border-radius: var(--radius); background: #2d6a4f; color: #fff; cursor: pointer; margin-bottom: 1rem; }
+  .push-btn:hover { background: #235540; }
+  .push-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .auth-bar { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; padding: 8px 12px; border-radius: var(--radius); margin-bottom: 1rem; border: 0.5px solid var(--border); background: var(--bg); color: var(--text2); display: flex; align-items: center; gap: 8px; }
+  .auth-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--text3); }
+  .auth-dot.signed-in { background: #2d6a4f; }
+  .auth-btn { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; font-weight: 600; padding: 4px 14px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg2); color: var(--text); cursor: pointer; margin-left: auto; }
+  .auth-btn:hover { background: var(--bg3); }
   .recent-table { width: 100%; border-collapse: collapse; font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; }
   .recent-table th { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text2); text-align: left; padding: 5px 8px; border-bottom: 0.5px solid var(--border); }
   .recent-table td { padding: 5px 8px; border-bottom: 0.5px solid var(--border); color: var(--text); }
@@ -174,6 +182,14 @@
     <button class="calc-btn" id="calc-btn" onclick="calculate()" disabled>Calculate &amp; generate content</button>
 
     <div id="output-area" style="display:none;">
+
+      <div class="auth-bar">
+        <div class="auth-dot" id="auth-dot"></div>
+        <span id="auth-text">Not signed in to Google</span>
+        <button class="auth-btn" id="auth-btn" onclick="handleAuthClick()">Sign in with Google</button>
+      </div>
+      <button class="push-btn" id="push-btn" onclick="pushToSheets()" disabled>Push to Google Sheets</button>
+
       <div class="inner-tabs">
         <button class="inner-tab active" onclick="showInnerTab('standings',this)">Updated standings</button>
         <button class="inner-tab" onclick="showInnerTab('sheet',this)">Sheet data</button>
@@ -476,7 +492,9 @@ function calcRow(row) {
   const prEl = row.querySelector('.pr-out');
   if (!isNaN(fin)) {
     dcEl.textContent = DC_PTS[fin] !== undefined ? DC_PTS[fin] : '0';
-    prEl.textContent = PRIZE[fin] ? '$'+PRIZE[fin] : '—';
+    const isMajor = document.getElementById('evt-type').value === 'Major';
+    const prizeAmt = (PRIZE[fin] || 0) + (fin === 1 && isMajor ? 20 : 0);
+    prEl.textContent = prizeAmt > 0 ? '$'+prizeAmt : '—';
     dcEl.style.color = fin <= 3 ? '#2d6a4f' : '#6b6a64';
     dcEl.style.fontWeight = fin <= 3 ? '700' : '600';
   } else { dcEl.textContent = '—'; prEl.textContent = '—'; }
@@ -489,7 +507,7 @@ function getRows() {
     dk:     parseFloat(row.querySelector('.dk-inp').value) || 0,
     lineup: row.querySelector('.lineup-inp')?.value || '',
     dcPts:  DC_PTS[parseInt(row.querySelector('.fin-inp').value)] || 0,
-    prize:  PRIZE[parseInt(row.querySelector('.fin-inp').value)] || 0,
+    prize:  (PRIZE[parseInt(row.querySelector('.fin-inp').value)] || 0) + (parseInt(row.querySelector('.fin-inp').value) === 1 && document.getElementById('evt-type').value === 'Major' ? 20 : 0),
   })).filter(r => r.player && !isNaN(r.finish));
 }
 
@@ -520,13 +538,17 @@ function calculate() {
   const sorted = Object.entries(newS).sort((a,b)=>b[1].pts-a[1].pts);
   const newRanks = sorted.map(e=>e[0]);
 
+  const SEASON_BONUS = [350, 150, 60];
   document.getElementById('standings-tbl').innerHTML =
-    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Earned</th></tr></thead><tbody>` +
+    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Weekly $</th><th style="text-align:right">Season bonus</th><th style="text-align:right">Total</th></tr></thead><tbody>` +
     sorted.map(([p,s],i) => {
       const delta = (oldRanks.indexOf(p)+1)-(i+1);
       const dHtml = delta>0?` <span class="delta-up">▲${delta}</span>`:delta<0?` <span class="delta-dn">▼${Math.abs(delta)}</span>`:'';
       const badge = i<3?['rank-1','rank-2','rank-3'][i]:'';
-      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${p}${dHtml}</td><td style="text-align:right;font-weight:600">${s.pts}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">$${s.prize}</td></tr>`;
+      const bonus = SEASON_BONUS[i] || 0;
+      const bonusLabel = i===0 ? '<span style="color:#b5860d;font-weight:600;">$350 champion</span>' : i===1 ? '<span style="color:#6b6a64;">$150 runner-up</span>' : i===2 ? '<span style="color:#7a4a1e;">$60 third place</span>' : '<span style="color:var(--color-text-tertiary,#9e9d97);">—</span>';
+      const total = s.prize + bonus;
+      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${p}${dHtml}</td><td style="text-align:right;font-weight:600">${s.pts}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">$${s.prize}</td><td style="text-align:right;">${bonusLabel}</td><td style="text-align:right;font-weight:600;">$${total}</td></tr>`;
     }).join('') + `</tbody>`;
 
   const dateStr = evtDate || 'TBD';
@@ -535,6 +557,7 @@ function calculate() {
   const podium = top3.map(r=>`${r.finish}${['st','nd','rd'][r.finish-1]}: ${r.player} (${r.dk} DK pts)`).join(' | ');
   const leader = sorted[0];
   const gap = sorted.length > 1 ? sorted[0][1].pts - sorted[1][1].pts : 0;
+  const leaderTotal = leader[1].prize + 350;
   const movers = rows.filter(r => (oldRanks.indexOf(r.player)-newRanks.indexOf(r.player)) >= 2);
 
   document.getElementById('sheet-results').textContent =
@@ -544,11 +567,11 @@ function calculate() {
   document.getElementById('recap-text').textContent =
 `DEBO Cup | Week ${evtWeek} recap — ${evtName}
 ${evtType==='Major'?'\n[ MAJOR EVENT ]\n':''}
-${winner?`${winner.player} takes the W at ${evtName} with ${winner.dk} DK points${evtType==='Major'?' — and banks a Major win!':'.'}`:''}
+${winner?`${winner.player} takes the W at ${evtName} with ${winner.dk} DK points${evtType==='Major'?' — banks a Major win and the $30 prize!':'.'}`:''}
 
 Podium: ${podium}
 
-Standings leader: ${leader[0]} — ${leader[1].pts} DC points${gap>0?`, leading by ${gap} over ${sorted[1][0]}`:''}.${movers.length?`\nBig movers: ${movers.map(r=>`${r.player} climbs ${oldRanks.indexOf(r.player)-newRanks.indexOf(r.player)} spots`).join(', ')}.`:''}
+Standings leader: ${leader[0]} — ${leader[1].pts} DC points, currently winning $${leaderTotal} (weekly + champion bonus)${gap>0?`. Leading by ${gap} over ${sorted[1][0]}`:''}.${movers.length?`\nBig movers: ${movers.map(r=>`${r.player} climbs ${oldRanks.indexOf(r.player)-newRanks.indexOf(r.player)} spots`).join(', ')}.`:''}
 
 Week ${evtWeek} of 33 complete. ${33-parseInt(evtWeek)} events remain in the 2026 season.`;
   document.getElementById('xthread-text').textContent =
@@ -556,7 +579,7 @@ Week ${evtWeek} of 33 complete. ${33-parseInt(evtWeek)} events remain in the 202
 
 ---
 
-${winner?`WINNER: ${winner.player} fires ${winner.dk} DK points to claim Week ${evtWeek}.${top3.slice(1).length?` ${top3.slice(1).map(r=>`${r.player} (${['','2nd','3rd'][r.finish]})`).join(', ')} round out the top 3.`:''}`:''} 
+${winner?`WINNER: ${winner.player} fires ${winner.dk} DK points to claim Week ${evtWeek}${evtType==='Major'?' and the $30 Major bonus':''}.${top3.slice(1).length?` ${top3.slice(1).map(r=>`${r.player} (${['','2nd','3rd'][r.finish]})`).join(', ')} round out the top 3.`:''}`:''} 
 
 ---
 
@@ -575,11 +598,15 @@ ${leader[0]} leads the DEBO Cup by ${gap} points with ${33-parseInt(evtWeek)} we
 
 function renderLiveStandings() {
   const sorted = Object.entries(CURRENT_STANDINGS).sort((a,b) => b[1].pts - a[1].pts);
+  const LIVE_BONUS = [350, 150, 60];
   document.getElementById('live-standings-tbl').innerHTML =
-    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Earned</th><th style="text-align:right">Events</th></tr></thead><tbody>` +
+    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Weekly $</th><th style="text-align:right">Season bonus</th><th style="text-align:right">Total</th></tr></thead><tbody>` +
     sorted.map(([p,s],i) => {
       const badge = i<3?['rank-1','rank-2','rank-3'][i]:'';
-      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${p}</td><td style="text-align:right;font-weight:600">${s.pts}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">$${s.prize}</td><td style="text-align:right;color:var(--text2)">${s.events}</td></tr>`;
+      const bonus = LIVE_BONUS[i] || 0;
+      const bonusLabel = i===0 ? '<span style="color:#b5860d;font-weight:600;">$350 champion</span>' : i===1 ? '<span style="color:#6b6a64;">$150 runner-up</span>' : i===2 ? '<span style="color:#7a4a1e;">$60 third place</span>' : '—';
+      const total = s.prize + bonus;
+      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${p}</td><td style="text-align:right;font-weight:600">${s.pts}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">$${s.prize}</td><td style="text-align:right;">${bonusLabel}</td><td style="text-align:right;font-weight:600;">$${total}</td></tr>`;
     }).join('') + `</tbody>`;
 }
 
@@ -644,6 +671,164 @@ function copyEl(id, btn) {
 }
 
 loadAll();
+
+// ── Google OAuth + Sheets API ─────────────────────────────────────────────
+
+const CLIENT_ID = '253075292004-ga8anbqsnq774uju3m5k0rjabo4rq4pj.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+const SHEET_ID_WRITE = '10Oa-LOeo7lyR5fkruCUun4A9Ofr_w2NLn0xfZEn_T0g';
+
+let tokenClient;
+let accessToken = null;
+let pendingRows = null;
+
+function initGoogleAuth() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: (resp) => {
+      if (resp.error) { setAuthStatus(false, 'Sign-in failed: ' + resp.error); return; }
+      accessToken = resp.access_token;
+      setAuthStatus(true, 'Signed in — ready to push');
+      document.getElementById('push-btn').disabled = false;
+      if (pendingRows) { doWrite(pendingRows); pendingRows = null; }
+    },
+  });
+}
+
+function handleAuthClick() {
+  if (accessToken) {
+    accessToken = null;
+    setAuthStatus(false, 'Signed out');
+    document.getElementById('push-btn').disabled = true;
+    document.getElementById('auth-btn').textContent = 'Sign in with Google';
+  } else {
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  }
+}
+
+function setAuthStatus(signedIn, msg) {
+  document.getElementById('auth-dot').className = 'auth-dot' + (signedIn ? ' signed-in' : '');
+  document.getElementById('auth-text').textContent = msg;
+  document.getElementById('auth-btn').textContent = signedIn ? 'Sign out' : 'Sign in with Google';
+}
+
+async function pushToSheets() {
+  const rows = getRows();
+  if (!rows.length) { alert('No results to push.'); return; }
+
+  const evtName = document.getElementById('evt-name').value || 'Tournament';
+  const evtDate = document.getElementById('evt-date').value || '';
+  const evtType = document.getElementById('evt-type').value;
+  const dateStr = evtDate || 'TBD';
+  const slug = evtName.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+  const seasonId = `2026 Regular__${dateStr.replace(/-/g,'')}__${slug}`;
+  const winner = [...rows].sort((a,b)=>a.finish-b.finish)[0];
+
+  const resultRows = rows.map(r => [
+    seasonId, dateStr, '2026 Regular', evtName,
+    r.player, r.finish, r.dk, 'FALSE', evtType, r.lineup
+  ]);
+
+  const summaryRow = [
+    seasonId, dateStr, '2026 Regular', evtName,
+    evtType === 'Major' ? 'TRUE' : 'FALSE',
+    winner?.player || '', winner?.dk || '', rows.length, evtType
+  ];
+
+  if (!accessToken) {
+    pendingRows = { resultRows, summaryRow };
+    tokenClient.requestAccessToken({ prompt: '' });
+    return;
+  }
+
+  doWrite({ resultRows, summaryRow });
+}
+
+async function doWrite({ resultRows, summaryRow }) {
+  const btn = document.getElementById('push-btn');
+  btn.disabled = true;
+  btn.textContent = 'Pushing to Sheets...';
+
+  // Extract actual sheet ID from the published CSV URL
+  const sheetId = '10Oa-LOeo7lyR5fkruCUun4A9Ofr_w2NLn0xfZEn_T0g';
+
+  try {
+    // First get sheet metadata to find the actual sheet GIDs and names
+    const metaRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+
+    if (!metaRes.ok) {
+      const err = await metaRes.json();
+      throw new Error(err.error?.message || 'Could not access spreadsheet');
+    }
+
+    const meta = await metaRes.json();
+    const sheets = meta.sheets.map(s => s.properties);
+    console.log('Available sheets:', sheets.map(s => s.title));
+
+    // Find RESULTS and EVENT SUMMARIES tabs
+    const resultsSheet = sheets.find(s => s.title === 'RESULTS');
+    const summarySheet = sheets.find(s => s.title === 'EVENT SUMMARIES');
+
+    if (!resultsSheet) throw new Error('Could not find RESULTS tab in spreadsheet');
+    if (!summarySheet) throw new Error('Could not find EVENT SUMMARIES tab in spreadsheet');
+
+    // Append to RESULTS
+    const resultsRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(resultsSheet.title)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: resultRows })
+      }
+    );
+    if (!resultsRes.ok) {
+      const err = await resultsRes.json();
+      throw new Error('RESULTS write failed: ' + (err.error?.message || resultsRes.status));
+    }
+
+    // Append to EVENT SUMMARIES
+    const summaryRes = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(summarySheet.title)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: [summaryRow] })
+      }
+    );
+    if (!summaryRes.ok) {
+      const err = await summaryRes.json();
+      throw new Error('EVENT SUMMARIES write failed: ' + (err.error?.message || summaryRes.status));
+    }
+
+    btn.textContent = 'Pushed successfully!';
+    btn.style.background = '#1a4a32';
+    setAuthStatus(true, `Pushed ${resultRows.length} rows to RESULTS + 1 row to EVENT SUMMARIES`);
+    setTimeout(() => {
+      btn.textContent = 'Push to Google Sheets';
+      btn.style.background = '';
+      btn.disabled = false;
+    }, 4000);
+
+  } catch(e) {
+    btn.textContent = 'Push to Google Sheets';
+    btn.disabled = false;
+    setAuthStatus(true, 'Push failed: ' + e.message);
+    alert('Push failed: ' + e.message);
+  }
+}
+
+// Load Google Identity Services
+window.addEventListener('load', () => {
+  const script = document.createElement('script');
+  script.src = 'https://accounts.google.com/gsi/client';
+  script.onload = initGoogleAuth;
+  document.head.appendChild(script);
+});
+
 </script>
 </body>
 </html>
