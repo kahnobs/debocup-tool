@@ -135,6 +135,7 @@
 
   <div class="top-tabs">
     <button class="top-tab active" onclick="showTopTab('enter',this)">Enter results</button>
+    <button class="top-tab" onclick="showTopTab('preview',this)">Week preview</button>
     <button class="top-tab" onclick="showTopTab('cutsweat',this)">Cut sweat</button>
     <button class="top-tab" onclick="showTopTab('history',this)">Recent results</button>
     <button class="top-tab" onclick="showTopTab('live-standings',this)">Current standings</button>
@@ -228,6 +229,47 @@
         <button class="copy-btn" onclick="copyEl('xthread-text',this)">Copy</button>
       </div>
     </div>
+  </div>
+
+  <!-- WEEK PREVIEW TAB -->
+  <div id="top-preview" style="display:none;">
+
+    <div class="card">
+      <div class="section-label">Upcoming event</div>
+      <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:12px;">Select the event from your schedule — all details load automatically.</p>
+      <div class="field-group" style="margin-bottom:12px;">
+        <label>Select event</label>
+        <select id="preview-event-select" onchange="onPreviewEventSelect()" style="width:100%;">
+          <option value="">-- loading schedule --</option>
+        </select>
+      </div>
+      <div id="preview-event-details" style="display:none;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div class="field-group"><label>Tournament</label><input type="text" id="prev-tournament" readonly style="background:var(--bg2);"></div>
+          <div class="field-group"><label>Course</label><input type="text" id="prev-course" readonly style="background:var(--bg2);"></div>
+          <div class="field-group"><label>Location</label><input type="text" id="prev-location" readonly style="background:var(--bg2);"></div>
+          <div class="field-group"><label>Week #</label><input type="text" id="prev-week" readonly style="background:var(--bg2);"></div>
+          <div class="field-group"><label>Defending PGA champion</label><input type="text" id="prev-pga-champ" readonly style="background:var(--bg2);"></div>
+          <div class="field-group"><label>Defending DEBO champion</label><input type="text" id="prev-debo-champ" readonly style="background:var(--bg2);"></div>
+        </div>
+        <div class="field-group" style="margin-bottom:12px;">
+          <label>Lineup lock time (e.g. 7:35 AM EST)</label>
+          <input type="text" id="prev-lock-time" placeholder="e.g. 7:35 AM EST">
+        </div>
+        <div class="field-group" style="margin-bottom:12px;">
+          <label>Past DEBO Cup winners at this event</label>
+          <div class="output-box" id="prev-past-winners" style="min-height:40px;font-size:13px;"></div>
+        </div>
+        <button class="calc-btn" onclick="generatePreviewPost()">Generate preview post</button>
+        <div id="preview-output" style="display:none;">
+          <div class="section-label">X post — Wednesday preview</div>
+          <div class="output-box" id="preview-post-text"></div>
+          <button class="copy-btn" onclick="copyEl('preview-post-text',this)">Copy</button>
+          <p style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-top:4px;">Attach your pre-made preview card graphic when posting to X.</p>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- CUT SWEAT TAB -->
@@ -326,6 +368,7 @@
 </div>
 <script>
 const REAL_SHEET_ID = '10Oa-LOeo7lyR5fkruCUun4A9Ofr_w2NLn0xfZEn_T0g';
+const CSV_SCHEDULE = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=66689929`;
 const CSV_STANDINGS = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=494949199`;
 const CSV_RESULTS   = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=0`;
 
@@ -433,6 +476,7 @@ async function loadAll() {
     setStatus('err', 'Could not reach Google Sheets — using fallback Week 10 standings');
 
   document.getElementById('calc-btn').disabled = false;
+  loadSchedule();
 }
 
 function useFallback() {
@@ -763,6 +807,140 @@ function copyEl(id, btn) {
   });
 }
 
+
+// ── Week Preview ──────────────────────────────────────────────────────────
+
+let SCHEDULE_DATA = [];
+
+async function loadSchedule() {
+  try {
+    const text = await fetchCSV(CSV_SCHEDULE);
+    const rows = parseCSVText(text);
+    SCHEDULE_DATA = rows.filter(r => r['Tournament'] || r['Start Date']);
+    populateScheduleDropdown();
+  } catch(e) {
+    console.log('Schedule load failed:', e.message);
+  }
+}
+
+function populateScheduleDropdown() {
+  const sel = document.getElementById('preview-event-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- select event --</option>';
+  SCHEDULE_DATA.forEach((row, i) => {
+    const name = row['Tournament'] || '';
+    const date = row['Start Date'] || '';
+    if (!name) return;
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = name + (date ? ' (' + date.substring(0,10) + ')' : '');
+    sel.appendChild(opt);
+  });
+}
+
+function onPreviewEventSelect() {
+  const sel = document.getElementById('preview-event-select');
+  const idx = parseInt(sel.value);
+  if (isNaN(idx)) return;
+  const row = SCHEDULE_DATA[idx];
+  if (!row) return;
+
+  document.getElementById('prev-tournament').value = row['Tournament'] || '';
+  document.getElementById('prev-course').value = row['Course'] || '';
+  document.getElementById('prev-location').value = row['Location'] || '';
+  document.getElementById('prev-pga-champ').value = row['Defending PGA Champion'] || '';
+  document.getElementById('prev-debo-champ').value = row['Defending DEBO Champion'] || '';
+
+  // Calculate week number from schedule position
+  const weekNum = SCHEDULE_DATA.filter(r => r['Tournament']).indexOf(row) + 1;
+  document.getElementById('prev-week').value = 'Week ' + weekNum;
+
+  // Look up past winners
+  const pastWinners = findPastWinners(row['Tournament'] || '');
+  document.getElementById('prev-past-winners').textContent =
+    pastWinners.length ? pastWinners.map(w => w.player + ' (' + w.season + ')').join(' • ') : 'No history found';
+
+  document.getElementById('preview-event-details').style.display = 'block';
+  document.getElementById('preview-output').style.display = 'none';
+}
+
+function findPastWinners(tournamentName) {
+  if (!ALL_RESULTS.length) return [];
+
+  // Build keyword set from tournament name for fuzzy matching
+  const stopWords = new Set(['the','of','at','in','a','an','open','championship','classic','invitational','pres','by','presented','tournament','memorial','challenge']);
+  const keywords = tournamentName.toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !stopWords.has(w));
+
+  // Find event winners from RESULTS tab — finish 1, grouped by season
+  const winners = [];
+  const seenSeasons = new Set();
+
+  // Sort results by date descending to get most recent first
+  const sorted = [...ALL_RESULTS].sort((a,b) => {
+    const da = a['Date'] || '';
+    const db = b['Date'] || '';
+    return db > da ? 1 : -1;
+  });
+
+  for (const r of sorted) {
+    if (parseInt(r['Finish']) !== 1) continue;
+    const evtName = (r['Event'] || '').toLowerCase();
+    const season = r['Season'] || r['Date']?.substring(0,4) || '';
+
+    // Check if any keyword matches the event name
+    const matches = keywords.some(kw => evtName.includes(kw));
+    if (!matches) continue;
+
+    // Extract year from season string
+    const yearMatch = season.match(/\d{4}/);
+    const year = yearMatch ? yearMatch[0] : season;
+
+    if (!seenSeasons.has(year)) {
+      seenSeasons.add(year);
+      winners.push({ player: r['Player'] || '', season: year });
+      if (winners.length >= 3) break;
+    }
+  }
+
+  return winners;
+}
+
+function generatePreviewPost() {
+  const tournament = document.getElementById('prev-tournament').value;
+  const course = document.getElementById('prev-course').value;
+  const location = document.getElementById('prev-location').value;
+  const week = document.getElementById('prev-week').value;
+  const pgaChamp = document.getElementById('prev-pga-champ').value;
+  const deboChamp = document.getElementById('prev-debo-champ').value;
+  const lockTime = document.getElementById('prev-lock-time').value;
+  const pastWinnersText = document.getElementById('prev-past-winners').textContent;
+
+  if (!lockTime) { alert('Please enter the lineup lock time.'); return; }
+
+  const post = week + ' — ' + tournament + '. ⛳
+
+' +
+    'Lineups lock ' + (lockTime.toLowerCase().includes('tomorrow') ? lockTime : 'tomorrow at ' + lockTime) + '.
+
+' +
+    'DEBO Cup Winners at ' + (course.split(' ')[0] || tournament.split(' ')[0]) + ':
+' +
+    pastWinnersText + '
+
+' +
+    (deboChamp ? 'Defending DEBO champion: ' + deboChamp + '. Can they repeat?
+
+' : '') +
+    'debocup.com';
+
+  document.getElementById('preview-post-text').textContent = post;
+  document.getElementById('preview-output').style.display = 'block';
+  document.getElementById('preview-output').scrollIntoView({behavior:'smooth'});
+}
+
 loadAll();
 loadApiKey();
 
@@ -954,7 +1132,7 @@ function buildCutSweatFromLineups() {
 // Auto-build when switching to Cut Sweat tab
 const origShowTopTab = showTopTab;
 function showTopTab(name, btn) {
-  ['enter','cutsweat','history','live-standings'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
+  ['enter','preview','cutsweat','history','live-standings'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
   document.querySelectorAll('.top-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if (name === 'cutsweat') buildCutSweatFromLineups();
