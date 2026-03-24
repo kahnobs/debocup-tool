@@ -748,12 +748,10 @@ Event type: ${d.evtType}
 ${d.pgaWinner ? 'PGA Tour winner: ' + d.pgaWinner : ''}
 
 DEBO Cup results:
-${d.top3.map(r => `${r.finish === 1 ? 'WINNER' : r.finish === 2 ? '2nd' : '3rd'}: ${r.player} (${r.dk} DK pts)`).join('
-')}
+${d.top3.map(r => `${r.finish === 1 ? 'WINNER' : r.finish === 2 ? '2nd' : '3rd'}: ${r.player} (${r.dk} DK pts)`).join('\n')}
 
 Current standings (top 5):
-${d.top5.map(([p,s],i) => `${i+1}. ${p} — ${s.pts} DC pts`).join('
-')}
+${d.top5.map(([p,s],i) => `${i+1}. ${p} — ${s.pts} DC pts`).join('\n')}
 
 Standings leader: ${d.leader} — leading by ${d.gap} points over ${d.second}
 Events remaining: ${33 - parseInt(d.evtWeek)}
