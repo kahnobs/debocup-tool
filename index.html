@@ -369,6 +369,8 @@
 <script>
 const REAL_SHEET_ID = '10Oa-LOeo7lyR5fkruCUun4A9Ofr_w2NLn0xfZEn_T0g';
 const CSV_SCHEDULE = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=66689929`;
+const CSV_PLAYERS  = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=437546101`;
+const GID_PLAYERS  = '437546101';
 const CSV_STANDINGS = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=494949199`;
 const CSV_RESULTS   = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=0`;
 
@@ -690,7 +692,7 @@ function calculate() {
   const movers = rows.filter(r => (oldRanks.indexOf(r.player)-newRanks.indexOf(r.player)) >= 2);
 
   document.getElementById('sheet-results').textContent =
-    rows.map(r=>`${seasonId}\t${dateStr}\t2026 Regular\t${evtName}\t${r.player}\t${r.finish}\t${r.dk}\tFALSE\t${evtType}\t${r.lineup}`).join('\n');
+    rows.map(r=>`${seasonId}\t${dateStr}\t2026 Regular\t${evtName}\t${r.player}\t${r.finish}\t${r.dk}\tFALSE\t${evtType}\t${r.prize}\t${r.lineup}`).join('\n');
   document.getElementById('sheet-summary').textContent =
     `${seasonId}\t${dateStr}\t2026 Regular\t${evtName}\t${evtType==='Major'}\t${winner?.player||''}\t${winner?.dk||''}\t${rows.length}\t${evtType}`;
   document.getElementById('recap-text').textContent =
@@ -1479,8 +1481,33 @@ async function pushToSheets() {
 
   const resultRows = rows.map(r => [
     seasonId, dateStr, '2026 Regular', evtName,
-    r.player, r.finish, r.dk, 'FALSE', evtType, r.lineup
+    r.player, r.finish, r.dk, 'FALSE', evtType, r.prize, r.lineup
   ]);
+
+  // ── Detect ties and calculate DC adjustments ──────────────────────────
+  const DC_PTS_MAP = {1:25,2:15,3:10,4:7,5:5,6:4,7:3,8:2,9:1,10:1};
+  const tieRows = [];
+
+  // Group players by finish position
+  const byFinish = {};
+  rows.forEach(r => {
+    if (!byFinish[r.finish]) byFinish[r.finish] = [];
+    byFinish[r.finish].push(r.player);
+  });
+
+  // Find ties (2+ players at same position)
+  Object.entries(byFinish).forEach(([finish, players]) => {
+    if (players.length < 2) return;
+    const pos = parseInt(finish);
+    const pts1 = DC_PTS_MAP[pos] || 0;
+    const pts2 = DC_PTS_MAP[pos + 1] || 0;
+    const avg = (pts1 + pts2) / 2;
+    const adj = parseFloat((avg - pts1).toFixed(2));
+    if (adj === 0) return; // no adjustment needed (both positions worth 0)
+    players.forEach(player => {
+      tieRows.push(['2026 Regular', evtName, player, adj]);
+    });
+  });
 
   const summaryRow = [
     seasonId, dateStr, '2026 Regular', evtName,
@@ -1489,7 +1516,7 @@ async function pushToSheets() {
   ];
 
   if (!accessToken) {
-    pendingRows = { resultRows, summaryRow };
+    pendingRows = { resultRows, summaryRow, tieRows };
     tokenClient.requestAccessToken({ prompt: '' });
     return;
   }
@@ -1497,68 +1524,45 @@ async function pushToSheets() {
   doWrite({ resultRows, summaryRow });
 }
 
-async function doWrite({ resultRows, summaryRow }) {
+async function doWrite({ resultRows, summaryRow, tieRows = [] }) {
   const btn = document.getElementById('push-btn');
   btn.disabled = true;
   btn.textContent = 'Pushing to Sheets...';
 
-  // Extract actual sheet ID from the published CSV URL
   const sheetId = '10Oa-LOeo7lyR5fkruCUun4A9Ofr_w2NLn0xfZEn_T0g';
 
+  const apiAppend = async (sheetName, values) => {
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values })
+      }
+    );
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(sheetName + ' write failed: ' + (err.error?.message || res.status));
+    }
+    return res.json();
+  };
+
   try {
-    // First get sheet metadata to find the actual sheet GIDs and names
-    const metaRes = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
+    btn.textContent = 'Writing results...';
+    await apiAppend('RESULTS', resultRows);
 
-    if (!metaRes.ok) {
-      const err = await metaRes.json();
-      throw new Error(err.error?.message || 'Could not access spreadsheet');
-    }
+    btn.textContent = 'Writing event summary...';
+    await apiAppend('EVENT SUMMARIES', [summaryRow]);
 
-    const meta = await metaRes.json();
-    const sheets = meta.sheets.map(s => s.properties);
-    console.log('Available sheets:', sheets.map(s => s.title));
-
-    // Find RESULTS and EVENT SUMMARIES tabs
-    const resultsSheet = sheets.find(s => s.title === 'RESULTS');
-    const summarySheet = sheets.find(s => s.title === 'EVENT SUMMARIES');
-
-    if (!resultsSheet) throw new Error('Could not find RESULTS tab in spreadsheet');
-    if (!summarySheet) throw new Error('Could not find EVENT SUMMARIES tab in spreadsheet');
-
-    // Append to RESULTS
-    const resultsRes = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(resultsSheet.title)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values: resultRows })
-      }
-    );
-    if (!resultsRes.ok) {
-      const err = await resultsRes.json();
-      throw new Error('RESULTS write failed: ' + (err.error?.message || resultsRes.status));
-    }
-
-    // Append to EVENT SUMMARIES
-    const summaryRes = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(summarySheet.title)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values: [summaryRow] })
-      }
-    );
-    if (!summaryRes.ok) {
-      const err = await summaryRes.json();
-      throw new Error('EVENT SUMMARIES write failed: ' + (err.error?.message || summaryRes.status));
+    if (tieRows.length > 0) {
+      btn.textContent = 'Writing tie adjustments...';
+      await apiAppend('TIES', tieRows);
     }
 
     btn.textContent = 'Pushed successfully!';
     btn.style.background = '#1a4a32';
-    setAuthStatus(true, `Pushed ${resultRows.length} rows to RESULTS + 1 row to EVENT SUMMARIES`);
+    const tieMsg = tieRows.length > 0 ? ` + ${tieRows.length} tie adjustment(s)` : '';
+    setAuthStatus(true, `Pushed ${resultRows.length} rows to RESULTS + 1 row to EVENT SUMMARIES${tieMsg}. Standings and career stats update automatically.`);
     setTimeout(() => {
       btn.textContent = 'Push to Google Sheets';
       btn.style.background = '';
