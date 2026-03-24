@@ -273,6 +273,7 @@
           <thead><tr>
             <th style="text-align:left;padding:5px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Golfer</th>
             <th style="text-align:center;padding:5px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Score</th>
+            <th style="text-align:center;padding:5px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Make Cut %</th>
             <th style="text-align:center;padding:5px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Ownership</th>
             <th style="text-align:center;padding:5px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Owners</th>
             <th style="text-align:center;padding:5px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);">Bold?</th>
@@ -286,10 +287,16 @@
 
     <div id="cut-sweat-output" style="display:none;">
       <div class="card">
-        <div class="section-label">X post — cut sweat</div>
+        <div class="section-label">Post text — copy this to X</div>
         <div class="output-box" id="cut-sweat-post"></div>
-        <button class="copy-btn" onclick="copyEl('cut-sweat-post',this)">Copy</button>
-        <p style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-top:8px;">Attach your DataGolf screenshot when posting to X.</p>
+        <button class="copy-btn" onclick="copyEl('cut-sweat-post',this)">Copy text</button>
+      </div>
+      <div class="card">
+        <div class="section-label">Table image — attach this to your X post</div>
+        <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:12px;">Right-click to save, or use the download button below.</p>
+        <canvas id="cut-sweat-canvas" style="width:100%;border-radius:var(--radius);border:0.5px solid var(--border);"></canvas>
+        <br><br>
+        <button class="copy-btn" onclick="downloadCutSweatImage()">Download image</button>
       </div>
     </div>
 
@@ -866,7 +873,10 @@ Return only valid JSON, nothing else.`
         });
         if (dgGolfer) {
           const scoreInp = row.querySelector('.score-inp');
-          if (scoreInp) { scoreInp.value = dgGolfer.score || ''; matched++; }
+          const makecutInp = row.querySelector('.makecut-inp');
+          if (scoreInp) scoreInp.value = dgGolfer.score || '';
+          if (makecutInp) makecutInp.value = dgGolfer.make_cut_pct || '';
+          if (scoreInp || makecutInp) matched++;
         }
       });
       statusEl.textContent = `Screenshot parsed — ${matched} of ${tableRows.length} golfers matched. Review scores below and adjust any mismatches.`;
@@ -922,7 +932,10 @@ function buildCutSweatFromLineups() {
     tr.innerHTML = `
       <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);font-weight:${isBold?'600':'400'}">${golfer}</td>
       <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;">
-        <input type="text" class="score-inp" placeholder="e.g. -3" style="width:70px;text-align:center;font-size:12px;padding:3px 6px;">
+        <input type="text" class="score-inp" placeholder="-3" style="width:60px;text-align:center;font-size:12px;padding:3px 6px;">
+      </td>
+      <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;">
+        <input type="text" class="makecut-inp" placeholder="98.6%" style="width:72px;text-align:center;font-size:12px;padding:3px 6px;">
       </td>
       <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;color:var(--text2);">${pct}%</td>
       <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;color:var(--text2);font-size:12px;">${owners.join(', ')}</td>
@@ -951,6 +964,16 @@ function parseScore(s) {
   return parseInt(clean.replace('+','')) || 0;
 }
 
+function getStatus(makeCutPct) {
+  const n = parseFloat((makeCutPct||'').replace('%',''));
+  if (isNaN(n)) return { label: '—', color: '#888888', dot: '#888888' };
+  if (n >= 90) return { label: 'SAFE (' + makeCutPct + ')', color: '#27ae60', dot: '#27ae60' };
+  if (n >= 70) return { label: 'LOOKING GOOD (' + makeCutPct + ')', color: '#82c91e', dot: '#82c91e' };
+  if (n >= 30) return { label: 'SWEATING (' + makeCutPct + ')', color: '#f59f00', dot: '#f59f00' };
+  if (n >= 10) return { label: 'IN TROUBLE (' + makeCutPct + ')', color: '#e8590c', dot: '#e8590c' };
+  return { label: 'DEAD (' + makeCutPct + ')', color: '#e03131', dot: '#e03131' };
+}
+
 function generateCutSweat() {
   const tournament = document.getElementById('cut-tournament').value || 'Tournament';
   const cutScore = document.getElementById('cut-score').value || '';
@@ -960,64 +983,143 @@ function generateCutSweat() {
   const cutPlus2 = document.getElementById('cut-plus2').value || '';
 
   const rows = Array.from(document.querySelectorAll('#cut-sweat-tbody tr'));
-  const totalPlayers = document.querySelectorAll('#rows-container .result-row').length || 1;
 
   const golfers = rows.map(row => {
     const cells = row.querySelectorAll('td');
     const name = cells[0]?.textContent.trim();
     const score = cells[1]?.querySelector('.score-inp')?.value.trim() || '';
-    const pct = cells[2]?.textContent.trim();
-    const owners = cells[3]?.textContent.trim();
-    const bold = cells[4]?.querySelector('.bold-chk')?.checked || false;
-    return { name, score, scoreNum: parseScore(score), pct, owners, bold };
+    const makeCut = cells[2]?.querySelector('.makecut-inp')?.value.trim() || '';
+    const ownerPct = cells[3]?.textContent.trim();
+    const owners = cells[4]?.textContent.trim();
+    const bold = cells[5]?.querySelector('.bold-chk')?.checked || false;
+    return { name, score, makeCut, ownerPct, owners, bold,
+             makeCutNum: parseFloat((makeCut||'').replace('%','')) || 0 };
   }).filter(g => g.name);
 
-  // Sort by score
-  golfers.sort((a,b) => a.scoreNum - b.scoreNum);
+  // Sort by make cut % descending (highest confidence first)
+  golfers.sort((a,b) => b.makeCutNum - a.makeCutNum);
 
-  // Build cut line odds string
+  // Build cut line odds for text post
   const cutLines = [];
-  if (cutMinus1) cutLines.push(`-1 → ${cutMinus1}`);
-  if (cutEven) cutLines.push(`E → ${cutEven}`);
-  if (cutPlus1) cutLines.push(`+1 → ${cutPlus1}`);
-  if (cutPlus2) cutLines.push(`+2 → ${cutPlus2}`);
-
-  // Build table rows
-  const tableRows = golfers.map(g => {
-    const name = g.bold ? `**${g.name}**` : g.name;
-    const score = g.score || '—';
-    const pctStr = g.bold ? `**${g.pct}**` : g.pct;
-    return `${name} (${score}) • ${pctStr}`;
-  });
-
-  // Split into safe/bubble/danger groups based on score
-  const safe = golfers.filter(g => g.scoreNum <= -2);
-  const bubble = golfers.filter(g => g.scoreNum > -2 && g.scoreNum <= 1);
-  const danger = golfers.filter(g => g.scoreNum > 1 && g.scoreNum < 900);
-  const dead = golfers.filter(g => g.scoreNum >= 900);
-
-  const formatGroup = (label, emoji, group) => {
-    if (!group.length) return '';
-    const groupLines = group.map(g => {
-      const name = g.name + ' (' + g.pct + ')';
-      return (g.bold ? '→ ' : '') + name + ' — ' + (g.score || '—');
-    }).join('\n');
-    return emoji + ' ' + label.toUpperCase() + '\n' + groupLines;
-  };
-
-  const sections = [
-    formatGroup('Safe', '🟢', safe),
-    formatGroup('Bubble', '🟡', bubble),
-    formatGroup('In trouble', '🔴', danger),
-    dead.length ? '💀 DEAD\n' + dead.map(g => g.name + ' — ' + (g.score||'—')).join('\n') : ''
-  ].filter(Boolean).join('\n\n');
+  if (cutMinus1) cutLines.push('• -1 → ' + cutMinus1);
+  if (cutEven)   cutLines.push('• E → ' + cutEven);
+  if (cutPlus1)  cutLines.push('• +1 → ' + cutPlus1);
+  if (cutPlus2)  cutLines.push('• +2 → ' + cutPlus2);
 
   const cutLinesStr = cutLines.join('\n');
-  const post = '🚨 CUT SWEAT 🚨\n' + tournament + '\n\nProjected cut: ' + cutScore + '\n' + cutLinesStr + '\n\n' + sections + '\n\ndebocup.com';
+  const post = '🚨 CUT SWEAT 🚨\n\nProjected Cut Line (via DataGolf):\n\n' + cutLinesStr + '\n\ndebocup.com';
 
   document.getElementById('cut-sweat-post').textContent = post;
   document.getElementById('cut-sweat-output').style.display = 'block';
+
+  // Generate canvas image
+  renderCutSweatCanvas(golfers, tournament);
   document.getElementById('cut-sweat-output').scrollIntoView({behavior:'smooth'});
+}
+
+function renderCutSweatCanvas(golfers, tournament) {
+  const canvas = document.getElementById('cut-sweat-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  const W = 640;
+  const ROW_H = 28;
+  const HEADER_H = 44;
+  const TITLE_H = 48;
+  const PADDING = 16;
+  const H = TITLE_H + HEADER_H + golfers.length * ROW_H + PADDING;
+
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // Background
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, 0, W, H);
+
+  // Title
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(tournament, W/2, 30);
+
+  // Column widths: Golfer | Status | Ownership
+  const COL = [0, 220, 450, W];
+  const colW = [220, 230, 190];
+
+  // Header row
+  const hy = TITLE_H;
+  ctx.fillStyle = '#2a2a2a';
+  ctx.fillRect(0, hy, W, HEADER_H);
+  ctx.fillStyle = '#aaaaaa';
+  ctx.font = 'bold 13px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Golfer', COL[0] + colW[0]/2, hy + 27);
+  ctx.fillText('Status', COL[1] + colW[1]/2, hy + 27);
+  ctx.fillText('Ownership', COL[2] + colW[2]/2, hy + 27);
+
+  // Rows
+  golfers.forEach((g, i) => {
+    const y = TITLE_H + HEADER_H + i * ROW_H;
+    const bg = i % 2 === 0 ? '#222222' : '#1e1e1e';
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, y, W, ROW_H);
+
+    const status = getStatus(g.makeCut);
+    const nameText = (g.score ? g.name + ' (' + g.score + ')' : g.name);
+
+    // Golfer name
+    ctx.fillStyle = '#ffffff';
+    ctx.font = (g.bold ? 'bold' : 'normal') + ' 13px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(nameText, COL[0] + 10, y + 19);
+
+    // Status dot
+    ctx.fillStyle = status.dot;
+    ctx.beginPath();
+    ctx.arc(COL[1] + 14, y + 14, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Status text
+    ctx.fillStyle = status.color;
+    ctx.font = (g.bold ? 'bold' : 'normal') + ' 12px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(status.label, COL[1] + 26, y + 19);
+
+    // Ownership
+    ctx.fillStyle = g.bold ? '#ffffff' : '#cccccc';
+    ctx.font = (g.bold ? 'bold' : 'normal') + ' 13px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(g.ownerPct, COL[2] + colW[2]/2, y + 19);
+
+    // Divider line
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, y + ROW_H);
+    ctx.lineTo(W, y + ROW_H);
+    ctx.stroke();
+  });
+
+  // Column dividers
+  ctx.strokeStyle = '#333333';
+  ctx.lineWidth = 0.5;
+  [COL[1], COL[2]].forEach(x => {
+    ctx.beginPath();
+    ctx.moveTo(x, TITLE_H);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+  });
+}
+
+function downloadCutSweatImage() {
+  const canvas = document.getElementById('cut-sweat-canvas');
+  const link = document.createElement('a');
+  link.download = 'debo-cup-cut-sweat.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
 }
 
 // ── AI Recap Generator ────────────────────────────────────────────────────
