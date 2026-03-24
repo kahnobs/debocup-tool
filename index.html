@@ -547,7 +547,7 @@ function calculate() {
 
   const SEASON_BONUS = [350, 150, 60];
   document.getElementById('standings-tbl').innerHTML =
-    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Weekly $</th><th style="text-align:right">Season bonus</th><th style="text-align:right">Total</th></tr></thead><tbody>` +
+    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Season $</th><th style="text-align:right">End of season bonus</th><th style="text-align:right">Projected total</th></tr></thead><tbody>` +
     sorted.map(([p,s],i) => {
       const delta = (oldRanks.indexOf(p)+1)-(i+1);
       const dHtml = delta>0?` <span class="delta-up">▲${delta}</span>`:delta<0?` <span class="delta-dn">▼${Math.abs(delta)}</span>`:'';
@@ -619,7 +619,7 @@ function renderLiveStandings() {
   const sorted = Object.entries(CURRENT_STANDINGS).sort((a,b) => b[1].pts - a[1].pts);
   const LIVE_BONUS = [350, 150, 60];
   document.getElementById('live-standings-tbl').innerHTML =
-    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Weekly $</th><th style="text-align:right">Season bonus</th><th style="text-align:right">Total</th></tr></thead><tbody>` +
+    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Season $</th><th style="text-align:right">End of season bonus</th><th style="text-align:right">Projected total</th></tr></thead><tbody>` +
     sorted.map(([p,s],i) => {
       const badge = i<3?['rank-1','rank-2','rank-3'][i]:'';
       const bonus = LIVE_BONUS[i] || 0;
