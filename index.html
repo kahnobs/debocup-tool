@@ -854,7 +854,8 @@ function onPreviewEventSelect() {
   document.getElementById('prev-debo-champ').value = row['Defending DEBO Champion'] || '';
 
   // Calculate week number from schedule position
-  const weekNum = SCHEDULE_DATA.filter(r => r['Tournament']).indexOf(row) + 1;
+  const COMPLETED_WEEKS = 10;
+  const weekNum = SCHEDULE_DATA.filter(r => r['Tournament']).indexOf(row) + 1 + COMPLETED_WEEKS;
   document.getElementById('prev-week').value = 'Week ' + weekNum;
 
   // Look up past winners
