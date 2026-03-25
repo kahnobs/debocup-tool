@@ -379,21 +379,15 @@ const PRIZE  = {1:10,2:5,3:3,4:2};
 
 // DK username → DEBO Cup player name mapping
 // Update this map as new players join or usernames change
-const DK_USERNAME_MAP = {
-  'mknob87':        'MK',
-  'WoodrowP':       'Woody',
-  'atan76':        'Anth',
-  'DrLoomis72':    'Loomis',
-  'bhscott96':      'Brad',
-  'decamp26':       'DeCampli',
-  'zach_mathias':   'Zach',
-  'croth20':        'Colin',
-  'Swicky92':       'Kyle',
-  'stepdaddystew69':'Stew',
-  'natewiley35':    'Wiley',
-  'b10boariu':      'Broc',
-  'bluke2424':      'B Luke',
+// DK username map — built dynamically from PLAYERS sheet (column A=DK_Username, column B=Player)
+// Fallback hardcoded map used if sheet can't be reached
+const DK_USERNAME_MAP_FALLBACK = {
+  'mknob87': 'MK', 'WoodrowP': 'Woody', 'atan76': 'Anth', 'DrLoomis72': 'Loomis',
+  'bhscott96': 'Brad', 'decamp26': 'DeCampli', 'zach_mathias': 'Zach', 'croth20': 'Colin',
+  'Swicky92': 'Kyle', 'stepdaddystew69': 'Stew', 'natewiley35': 'Wiley',
+  'b10boariu': 'Broc', 'bluke2424': 'B Luke',
 };
+let DK_USERNAME_MAP = {...DK_USERNAME_MAP_FALLBACK};
 
 let CURRENT_STANDINGS = {};
 let PLAYERS = [];
@@ -442,6 +436,8 @@ async function loadAll() {
     const text = await fetchCSV(CSV_STANDINGS);
     const rows = parseCSVText(text);
     CURRENT_STANDINGS = {}; PLAYERS = [];
+    // Reset username map and rebuild from sheet
+    DK_USERNAME_MAP = {};
     rows.forEach(r => {
       const p = r['Player'] || r['player'];
       if (!p) return;
@@ -453,8 +449,13 @@ async function loadAll() {
         events: parseInt(r['Events_Played']||r['Events Played']||0)||0,
       };
       PLAYERS.push(p);
+      // Build DK username map from DK_Username column
+      const dk = r['DK_Username'] || r['DK Username'] || '';
+      if (dk) DK_USERNAME_MAP[dk] = p;
     });
     if (!PLAYERS.length) throw new Error('No players');
+    // If no usernames loaded from sheet, fall back to hardcoded
+    if (Object.keys(DK_USERNAME_MAP).length === 0) DK_USERNAME_MAP = {...DK_USERNAME_MAP_FALLBACK};
     rebuildSelects();
     renderLiveStandings();
     standingsOk = true;
