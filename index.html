@@ -1140,14 +1140,18 @@ function parseScore(s) {
   return parseInt(clean.replace('+','')) || 0;
 }
 
-function getStatus(makeCutPct) {
+function getStatus(makeCutPct, score) {
+  // Handle WD explicitly
+  if ((score||'').toString().toUpperCase() === 'WD') {
+    return { label: 'DEAD (WD)', color: '#e03131', dot: '#e03131', sortVal: -1 };
+  }
   const n = parseFloat((makeCutPct||'').replace('%',''));
-  if (isNaN(n)) return { label: '—', color: '#888888', dot: '#888888' };
-  if (n >= 90) return { label: 'SAFE (' + makeCutPct + ')', color: '#27ae60', dot: '#27ae60' };
-  if (n >= 70) return { label: 'LOOKING GOOD (' + makeCutPct + ')', color: '#82c91e', dot: '#82c91e' };
-  if (n >= 30) return { label: 'SWEATING (' + makeCutPct + ')', color: '#f59f00', dot: '#f59f00' };
-  if (n >= 10) return { label: 'IN TROUBLE (' + makeCutPct + ')', color: '#e8590c', dot: '#e8590c' };
-  return { label: 'DEAD (' + makeCutPct + ')', color: '#e03131', dot: '#e03131' };
+  if (isNaN(n)) return { label: '—', color: '#888888', dot: '#888888', sortVal: -2 };
+  if (n >= 90) return { label: 'SAFE (' + makeCutPct + ')', color: '#27ae60', dot: '#27ae60', sortVal: n };
+  if (n >= 70) return { label: 'LOOKING GOOD (' + makeCutPct + ')', color: '#82c91e', dot: '#82c91e', sortVal: n };
+  if (n >= 30) return { label: 'SWEATING (' + makeCutPct + ')', color: '#f59f00', dot: '#f59f00', sortVal: n };
+  if (n >= 10) return { label: 'IN TROUBLE (' + makeCutPct + ')', color: '#e8590c', dot: '#e8590c', sortVal: n };
+  return { label: 'DEAD (' + makeCutPct + ')', color: '#e03131', dot: '#e03131', sortVal: n };
 }
 
 function generateCutSweat() {
@@ -1169,12 +1173,19 @@ function generateCutSweat() {
     const ownerPct = cells[3]?.textContent.trim();
     const owners = cells[4]?.textContent.trim();
     const bold = cells[5]?.querySelector('.bold-chk')?.checked || false;
-    return { name, score, makeCut, ownerPct, owners, bold,
-             makeCutNum: parseFloat((makeCut||'').replace('%','')) || 0 };
+    const isWD = score.toUpperCase() === 'WD';
+    return { name, score, makeCut, ownerPct, owners, bold, isWD,
+             makeCutNum: isWD ? -1 : (parseFloat((makeCut||'').replace('%','')) || 0) };
   }).filter(g => g.name);
 
-  // Sort by make cut % descending (highest confidence first)
-  golfers.sort((a,b) => b.makeCutNum - a.makeCutNum);
+  // Sort by make cut % descending, WDs go to bottom
+  golfers.sort((a,b) => {
+    const aWD = (a.score||'').toUpperCase() === 'WD';
+    const bWD = (b.score||'').toUpperCase() === 'WD';
+    if (aWD && !bWD) return 1;
+    if (!aWD && bWD) return -1;
+    return b.makeCutNum - a.makeCutNum;
+  });
 
   // Build cut line odds for text post
   const cutLines = [];
@@ -1243,7 +1254,7 @@ function renderCutSweatCanvas(golfers, tournament) {
     ctx.fillStyle = bg;
     ctx.fillRect(0, y, W, ROW_H);
 
-    const status = getStatus(g.makeCut);
+    const status = getStatus(g.makeCut, g.score);
     const nameText = (g.score ? g.name + ' (' + g.score + ')' : g.name);
 
     // Golfer name
