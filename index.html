@@ -1039,13 +1039,24 @@ Return only valid JSON, nothing else.`
         const golferName = row.querySelector('td:first-child')?.textContent.trim();
         // Try to match by last name or full name
         const dgGolfer = parsed.golfers.find(g => {
-          const dgName = g.name?.toLowerCase() || '';
-          const rowName = golferName?.toLowerCase() || '';
-          // Match if last name matches or full name matches
-          const dgLastName = dgName.split(' ').pop();
-          const rowLastName = rowName.split(' ').pop();
-          return dgName === rowName || dgLastName === rowLastName || 
-                 dgName.includes(rowLastName) || rowName.includes(dgLastName);
+          const dgName = (g.name || '').toLowerCase().trim();
+          const rowName = (golferName || '').toLowerCase().trim();
+          if (!dgName || !rowName) return false;
+          // Exact match
+          if (dgName === rowName) return true;
+          // Last name match
+          const dgLast = dgName.split(' ').pop();
+          const rowLast = rowName.split(' ').pop();
+          if (dgLast === rowLast && dgLast.length > 3) return true;
+          // Contains match (handles hyphenated names, accents etc.)
+          if (dgName.includes(rowLast) || rowName.includes(dgLast)) return true;
+          // Normalize accents and try again
+          const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'');
+          if (norm(dgName) === norm(rowName)) return true;
+          if (norm(dgLast) === norm(rowLast) && rowLast.length > 3) return true;
+          // First 4 chars of last name match (handles Echavarria/Echevarria type variants)
+          if (dgLast.length > 4 && rowLast.length > 4 && dgLast.substring(0,5) === rowLast.substring(0,5)) return true;
+          return false;
         });
         if (dgGolfer) {
           const scoreInp = row.querySelector('.score-inp');
@@ -1102,7 +1113,7 @@ function buildCutSweatFromLineups() {
   const topOwned = sorted.slice(0,4).map(e => e[0]); // auto-bold top 4
 
   sorted.forEach(([golfer, owners]) => {
-    const pct = Math.round((owners.length / totalPlayers) * 100);
+    const pct = ((owners.length / totalPlayers) * 100).toFixed(2);
     const isBold = topOwned.includes(golfer);
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -1111,7 +1122,7 @@ function buildCutSweatFromLineups() {
         <input type="text" class="score-inp" placeholder="-3" style="width:60px;text-align:center;font-size:12px;padding:3px 6px;">
       </td>
       <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;">
-        <input type="text" class="makecut-inp" placeholder="98.6%" style="width:72px;text-align:center;font-size:12px;padding:3px 6px;">
+        <input type="text" class="makecut-inp" placeholder="98.6%" style="width:72px;text-align:center;font-size:12px;padding:3px 6px;" onblur="formatMakeCutPct(this)">
       </td>
       <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;color:var(--text2);">${pct}%</td>
       <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;color:var(--text2);font-size:12px;">${owners.join(', ')}</td>
@@ -1138,6 +1149,13 @@ function parseScore(s) {
   if (clean === 'E' || clean === '0') return 0;
   if (clean === 'WD' || clean === 'DQ' || clean === 'CUT') return 999;
   return parseInt(clean.replace('+','')) || 0;
+}
+
+function formatMakeCutPct(input) {
+  let val = input.value.trim().replace('%','');
+  if (val && !isNaN(parseFloat(val))) {
+    input.value = parseFloat(val).toFixed(1) + '%';
+  }
 }
 
 function getStatus(makeCutPct, score) {
