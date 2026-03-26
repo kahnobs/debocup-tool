@@ -1092,7 +1092,7 @@ function buildCutSweatFromLineups() {
   cutSweatGolfers = golferMap;
 
   // Populate golfer CSV list
-  const golferList = Object.keys(golferMap).sort().join(', ');
+  const golferList = Object.keys(golferMap).sort().join(',');
   document.getElementById('golfer-csv-list').textContent = golferList || 'No lineups found — import DK CSV first.';
 
   // Build cut sweat table
