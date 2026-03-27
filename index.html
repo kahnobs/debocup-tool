@@ -1067,6 +1067,7 @@ Return only valid JSON, nothing else.`
         }
       });
       statusEl.textContent = `Screenshot parsed — ${matched} of ${tableRows.length} golfers matched. Review scores below and adjust any mismatches.`;
+      sortCutSweatTable();
       statusEl.style.color = matched > 0 ? '#2d6a4f' : '#9b2226';
     } else {
       statusEl.textContent = 'No golfer data found in screenshot. Enter scores manually.';
@@ -1122,7 +1123,7 @@ function buildCutSweatFromLineups() {
         <input type="text" class="score-inp" placeholder="-3" style="width:60px;text-align:center;font-size:12px;padding:3px 6px;">
       </td>
       <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;">
-        <input type="text" class="makecut-inp" placeholder="98.6%" style="width:72px;text-align:center;font-size:12px;padding:3px 6px;" onblur="formatMakeCutPct(this)">
+        <input type="text" class="makecut-inp" placeholder="98.6%" style="width:72px;text-align:center;font-size:12px;padding:3px 6px;" onblur="formatMakeCutPct(this);sortCutSweatTable()">
       </td>
       <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;color:var(--text2);">${pct}%</td>
       <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);text-align:center;color:var(--text2);font-size:12px;">${owners.join(', ')}</td>
@@ -1156,6 +1157,17 @@ function formatMakeCutPct(input) {
   if (val && !isNaN(parseFloat(val))) {
     input.value = parseFloat(val).toFixed(1) + '%';
   }
+}
+
+function sortCutSweatTable() {
+  const tbody = document.getElementById('cut-sweat-tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a, b) => {
+    const aScore = a.querySelector('.score-inp')?.value.toUpperCase() === 'WD' ? -1 : parseFloat((a.querySelector('.makecut-inp')?.value||'').replace('%','')) || 0;
+    const bScore = b.querySelector('.score-inp')?.value.toUpperCase() === 'WD' ? -1 : parseFloat((b.querySelector('.makecut-inp')?.value||'').replace('%','')) || 0;
+    return bScore - aScore;
+  });
+  rows.forEach(r => tbody.appendChild(r));
 }
 
 function getStatus(makeCutPct, score) {
