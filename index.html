@@ -334,9 +334,14 @@
 
     <div id="cut-sweat-output" style="display:none;">
       <div class="card">
-        <div class="section-label">Post text — copy this to X</div>
+        <div class="section-label">Post 1 — cut line odds (attach table image)</div>
         <div class="output-box" id="cut-sweat-post"></div>
-        <button class="copy-btn" onclick="copyEl('cut-sweat-post',this)">Copy text</button>
+        <button class="copy-btn" onclick="copyEl('cut-sweat-post',this)">Copy</button>
+      </div>
+      <div class="card">
+        <div class="section-label">Post 2 — emoji exposure breakdown (reply to post 1)</div>
+        <div class="output-box" id="cut-sweat-post2"></div>
+        <button class="copy-btn" onclick="copyEl('cut-sweat-post2',this)">Copy</button>
       </div>
       <div class="card">
         <div class="section-label">Table image — attach this to your X post</div>
@@ -1226,7 +1231,42 @@ function generateCutSweat() {
   const cutLinesStr = cutLines.join('\n');
   const post = '🚨 CUT SWEAT 🚨\n\nProjected Cut Line (via DataGolf):\n\n' + cutLinesStr + '\n\ndebocup.com';
 
+  // ── Emoji breakdown post ─────────────────────────────────────────────
+  const emojiMap = pct => {
+    if (pct === -1) return '💀'; // WD
+    if (pct >= 90) return '🟢';
+    if (pct >= 70) return '🟡';
+    if (pct >= 30) return '🟠';
+    if (pct >= 10) return '🔴';
+    return '💀';
+  };
+
+  // Build per-owner breakdown
+  // Collect all owners from the golfer list
+  const ownerSet = {};
+  golfers.forEach(g => {
+    if (!g.owners) return;
+    g.owners.split(',').map(o => o.trim()).filter(Boolean).forEach(owner => {
+      if (!ownerSet[owner]) ownerSet[owner] = [];
+      ownerSet[owner].push({ name: g.name, makeCutNum: g.makeCutNum, isWD: g.isWD });
+    });
+  });
+
+  // Sort owners by average make cut % descending (best exposure first)
+  const emojiLines = Object.entries(ownerSet)
+    .map(([owner, ownerGolfers]) => {
+      const sorted = [...ownerGolfers].sort((a,b) => b.makeCutNum - a.makeCutNum);
+      const avg = sorted.reduce((sum, g) => sum + (g.isWD ? 0 : g.makeCutNum), 0) / (sorted.length || 1);
+      const emojis = sorted.map(g => emojiMap(g.isWD ? -1 : g.makeCutNum)).join('');
+      return { line: owner + ': ' + emojis, avg };
+    })
+    .sort((a,b) => b.avg - a.avg)
+    .map(o => o.line);
+
+  const post2 = '🏌️ DEBO CUP EXPOSURE\n\n' + emojiLines.join('\n');
+
   document.getElementById('cut-sweat-post').textContent = post;
+  document.getElementById('cut-sweat-post2').textContent = post2;
   document.getElementById('cut-sweat-output').style.display = 'block';
 
   // Generate canvas image
