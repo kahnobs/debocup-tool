@@ -15,7 +15,7 @@
     --radius: 8px; --radius-lg: 12px;
   }
   body { font-family: 'Georgia','Times New Roman',serif; background: var(--bg2); color: var(--text); min-height: 100vh; padding: 2rem 1rem; }
-  .container { max-width: 800px; margin: 0 auto; }
+  .container { max-width: 980px; margin: 0 auto; }
   header { text-align: center; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 2px solid var(--text); }
   header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; text-transform: uppercase; }
   header p { font-size: 13px; color: var(--text2); margin-top: 4px; font-style: italic; }
@@ -341,7 +341,7 @@
       <div class="card">
         <div class="section-label">Table image — attach this to your X post</div>
         <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:12px;">Right-click to save, or use the download button below.</p>
-        <canvas id="cut-sweat-canvas" style="width:100%;border-radius:var(--radius);border:0.5px solid var(--border);"></canvas>
+        <canvas id="cut-sweat-canvas" style="max-width:100%;border-radius:var(--radius);border:0.5px solid var(--border);"></canvas>
         <br><br>
         <button class="copy-btn" onclick="downloadCutSweatImage()">Download image</button>
       </div>
