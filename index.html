@@ -1238,7 +1238,7 @@ function renderCutSweatCanvas(golfers, tournament) {
   const canvas = document.getElementById('cut-sweat-canvas');
   const dpr = window.devicePixelRatio || 1;
   const W = 920;
-  const ROW_H = 28;
+  const ROW_H = 30;
   const HEADER_H = 44;
   const TITLE_H = 48;
   const PADDING = 16;
@@ -1256,7 +1256,7 @@ function renderCutSweatCanvas(golfers, tournament) {
   ctx.fillRect(0, 0, W, H);
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 18px Arial, sans-serif';
+  ctx.font = 'bold 20px Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(tournament, W/2, 30);
 
@@ -1267,7 +1267,7 @@ function renderCutSweatCanvas(golfers, tournament) {
   ctx.fillStyle = '#2a2a2a';
   ctx.fillRect(0, hy, W, HEADER_H);
   ctx.fillStyle = '#aaaaaa';
-  ctx.font = 'bold 12px Arial, sans-serif';
+  ctx.font = 'bold 13px Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('Golfer',  COL[0] + colW[0]/2, hy + 27);
   ctx.fillText('Status',  COL[1] + colW[1]/2, hy + 27);
@@ -1284,7 +1284,7 @@ function renderCutSweatCanvas(golfers, tournament) {
     const weight = g.bold ? 'bold' : 'normal';
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = weight + ' 12px Arial, sans-serif';
+    ctx.font = weight + ' 13px Arial, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(nameText, COL[0] + 8, y + 19);
 
@@ -1294,17 +1294,17 @@ function renderCutSweatCanvas(golfers, tournament) {
     ctx.fill();
 
     ctx.fillStyle = status.color;
-    ctx.font = weight + ' 11px Arial, sans-serif';
+    ctx.font = weight + ' 12px Arial, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(status.label, COL[1] + 22, y + 19);
 
     ctx.fillStyle = g.bold ? '#ffffff' : '#cccccc';
-    ctx.font = weight + ' 12px Arial, sans-serif';
+    ctx.font = weight + ' 13px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(g.ownerPct, COL[2] + colW[2]/2, y + 19);
 
     ctx.fillStyle = g.bold ? '#ffffff' : '#aaaaaa';
-    ctx.font = weight + ' 11px Arial, sans-serif';
+    ctx.font = weight + ' 12px Arial, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(g.owners || '', COL[3] + 8, y + 19);
 
