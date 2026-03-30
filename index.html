@@ -210,17 +210,13 @@
         <button class="copy-btn" onclick="copyEl('sheet-summary',this)">Copy</button>
       </div>
       <div id="itab-recap" style="display:none;">
-        <div id="api-key-setup" style="margin-bottom:1rem;">
-          <div class="section-label">Claude API key</div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <input type="password" id="claude-api-key" placeholder="sk-ant-..." style="flex:1;font-family:monospace;font-size:12px;" oninput="saveApiKey(this.value)">
-            <span id="api-key-status" style="font-size:12px;font-family:'Helvetica Neue',Arial,sans-serif;color:var(--text2);white-space:nowrap;"></span>
-          </div>
-          <p style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-top:5px;">Stored locally in your browser only — never sent anywhere except the Claude API.</p>
+        <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:12px;">Auto-generated from your results. Edit the one-liner before posting.</p>
+        <div class="field-group" style="margin-bottom:12px;">
+          <label>One-liner (optional — edit before posting)</label>
+          <input type="text" id="recap-oneliner" placeholder="e.g. Brad claims his first career DEBO Cup victory." oninput="updateRecapTemplate()">
         </div>
-        <button class="push-btn" id="ai-recap-btn" onclick="generateAIRecap()" style="margin-bottom:1rem;">Generate AI recap</button>
         <div class="section-label">X post — Monday morning recap</div>
-        <div class="output-box" id="recap-text">Click "Generate AI recap" above to create a personalized recap, or the template version will appear here after calculating.</div>
+        <div class="output-box" id="recap-text">Calculate results first to generate the recap.</div>
         <button class="copy-btn" onclick="copyEl('recap-text',this)">Copy</button>
       </div>
       <div id="itab-xthread" style="display:none;">
@@ -701,16 +697,7 @@ function calculate() {
     rows.map(r=>`${seasonId}\t${dateStr}\t2026 Regular\t${evtName}\t${r.player}\t${r.finish}\t${r.dk}\tFALSE\t${evtType}\t${r.prize}\t${r.lineup}`).join('\n');
   document.getElementById('sheet-summary').textContent =
     `${seasonId}\t${dateStr}\t2026 Regular\t${evtName}\t${evtType==='Major'}\t${winner?.player||''}\t${winner?.dk||''}\t${rows.length}\t${evtType}`;
-  document.getElementById('recap-text').textContent =
-`DEBO Cup | Week ${evtWeek} recap — ${evtName}
-${evtType==='Major'?'\n[ MAJOR EVENT ]\n':''}
-${winner?`${winner.player} takes the W at ${evtName} with ${winner.dk} DK points${evtType==='Major'?' — banks a Major win and the $30 prize!':'.'}`:''}
-
-Podium: ${podium}
-
-Standings leader: ${leader[0]} — ${leader[1].pts} DC points, currently winning $${leaderTotal} (weekly + champion bonus)${gap>0?`. Leading by ${gap} over ${sorted[1][0]}`:''}.${movers.length?`\nBig movers: ${movers.map(r=>`${r.player} climbs ${oldRanks.indexOf(r.player)-newRanks.indexOf(r.player)} spots`).join(', ')}.`:''}
-
-Week ${evtWeek} of 33 complete. ${33-parseInt(evtWeek)} events remain in the 2026 season.`;
+  buildRecapTemplate(evtName, evtWeek, winner, document.getElementById('pga-winner').value || '');
   document.getElementById('xthread-text').textContent =
 `Week ${evtWeek} results are in. ${evtName} is done. [1/4]
 
@@ -727,17 +714,7 @@ ${sorted.slice(0,5).map(([p,s],i)=>`${i+1}. ${p} — ${s.pts} pts`).join('\n')}
 
 ${leader[0]} leads the DEBO Cup by ${gap} points with ${33-parseInt(evtWeek)} weeks left. Follow along at debocup.com #DEBOCup`;
 
-  // Store data for AI recap
-  storeCalculatedData({
-    evtName, evtWeek, evtType,
-    pgaWinner: document.getElementById('pga-winner').value || '',
-    top3: rows.filter(r => r.finish <= 3).sort((a,b) => a.finish - b.finish),
-    top5: sorted.slice(0, 5),
-    leader: leader[0],
-    second: sorted.length > 1 ? sorted[1][0] : '',
-    gap,
-    movers: movers.map(r => `${r.player} +${oldRanks.indexOf(r.player)-newRanks.indexOf(r.player)} spots`),
-  });
+
 
   document.getElementById('output-area').style.display = 'block';
   document.getElementById('output-area').scrollIntoView({behavior:'smooth'});
@@ -941,7 +918,6 @@ function generatePreviewPost() {
 }
 
 loadAll();
-loadApiKey();
 
 // ── DataGolf Screenshot Parser ────────────────────────────────────────────
 
@@ -1373,133 +1349,33 @@ function downloadCutSweatImage() {
   link.click();
 }
 
-// ── AI Recap Generator ────────────────────────────────────────────────────
+// ── Recap template ─────────────────────────────────────────────
 
-let lastCalculatedData = null;
+let recapEvtName = '', recapEvtWeek = '', recapWinner = null, recapPgaWinner = '';
 
-function saveApiKey(val) {
-  if (val.startsWith('sk-ant-')) {
-    localStorage.setItem('claude_api_key', val);
-    document.getElementById('api-key-status').textContent = 'Saved';
-    document.getElementById('api-key-status').style.color = '#2d6a4f';
-  } else {
-    document.getElementById('api-key-status').textContent = '';
-  }
+function buildRecapTemplate(evtName, evtWeek, winner, pgaWinner) {
+  recapEvtName = evtName; recapEvtWeek = evtWeek;
+  recapWinner = winner; recapPgaWinner = pgaWinner;
+  updateRecapTemplate();
 }
 
-function loadApiKey() {
-  const key = localStorage.getItem('claude_api_key');
-  if (key) {
-    document.getElementById('claude-api-key').value = key;
-    document.getElementById('api-key-status').textContent = 'Saved';
-    document.getElementById('api-key-status').style.color = '#2d6a4f';
-  }
-}
-
-async function generateAIRecap() {
-  const apiKey = localStorage.getItem('claude_api_key');
-  if (!apiKey) {
-    alert('Please enter your Claude API key first.');
-    return;
-  }
-  if (!lastCalculatedData) {
-    alert('Please calculate results first.');
-    return;
-  }
-
-  const btn = document.getElementById('ai-recap-btn');
-  btn.textContent = 'Generating...';
-  btn.classList.add('generating');
-  document.getElementById('recap-text').textContent = 'Writing recap...';
-
-  const d = lastCalculatedData;
-  const prompt = `You write Monday morning recap posts for the DEBO Cup, a private fantasy golf league among friends. Match this format EXACTLY — no exceptions:
-
-EXAMPLE POST 1:
-Valspar Championship 🏆
-
-PGA TOUR Winner: Matt Fitzpatrick
-DEBO Cup Winner: MK
-
-MK secures his first win of the season.
-
-Standings updated 👇
-debocup.com
-
-EXAMPLE POST 2:
-Phoenix Open 🏆
-
-PGA TOUR Winner: Thomas Detry
-DEBO Cup Winner: Anth
-
-Anth extends his lead at the top with his third win of the year.
-
-Standings updated 👇
-debocup.com
-
-RULES:
-- Line 1: Tournament name + 🏆
-- Line 2: blank
-- Line 3: "PGA TOUR Winner: [name]" (skip this line entirely if no PGA winner provided)
-- Line 4: "DEBO Cup Winner: [player]"
-- Line 5: blank
-- Line 6: ONE sentence about the winner or standings. Keep it under 12 words. Reference their season record or standings impact. Never use the word "tightest" or "edges". Be direct, not dramatic.
-- Line 7: blank
-- Line 8: "Standings updated 👇"
-- Line 9: "debocup.com"
-
-Do not add anything else. No hashtags. No extra lines. No fluff.
-
-DATA:
-Tournament: ${d.evtName}
-${d.pgaWinner ? 'PGA TOUR Winner: ' + d.pgaWinner : 'No PGA winner provided — skip that line'}
-DEBO Cup Winner: ${d.top3[0]?.player || ''}
-Winner DK score: ${d.top3[0]?.dk || ''}
-Winner season wins: ${d.top3[0] ? (lastCalculatedData.top5.find(([p]) => p === d.top3[0].player)?.[1]?.wins || '') : ''}
-Standings leader: ${d.leader} (${d.gap} point lead over ${d.second})
-Events remaining: ${33 - parseInt(d.evtWeek)}
-${d.evtType === 'Major' ? 'This was a Major — winner earned $30 bonus prize.' : ''}
-${d.movers.length ? 'Notable: ' + d.movers.join(', ') : ''}
-
-Write only the post text. Nothing else.`;
-
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error?.message || 'API error ' + response.status);
-    }
-
-    const data = await response.json();
-    const text = data.content[0]?.text || '';
-    document.getElementById('recap-text').textContent = text.trim();
-    btn.textContent = 'Regenerate';
-
-  } catch(e) {
-    document.getElementById('recap-text').textContent = 'Error: ' + e.message;
-    btn.textContent = 'Generate AI recap';
-  }
-
-  btn.classList.remove('generating');
-}
-
-// Store calculated data for AI recap use
-function storeCalculatedData(data) {
-  lastCalculatedData = data;
+function updateRecapTemplate() {
+  const oneliner = (document.getElementById('recap-oneliner')?.value || '').trim();
+  const winnerName = recapWinner?.player || '';
+  const defaultLine = winnerName ? winnerName + ' takes Week ' + recapEvtWeek + '.' : '';
+  const line = oneliner || defaultLine;
+  const parts = [
+    recapEvtName + ' 🏆',
+    '',
+    recapPgaWinner ? 'PGA TOUR Winner: ' + recapPgaWinner : null,
+    'DEBO Cup Winner: ' + winnerName,
+    '',
+    line,
+    '',
+    'Standings updated 👇',
+    'debocup.com'
+  ].filter(p => p !== null);
+  document.getElementById('recap-text').textContent = parts.join('\n');
 }
 
 
