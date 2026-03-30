@@ -745,7 +745,7 @@ function renderHistory() {
     if (!byEvent[evt]) byEvent[evt] = { date: r['Date']||'', type: r['Event Type']||'Regular', rows: [] };
     byEvent[evt].rows.push(r);
   });
-  const eventList = Object.entries(byEvent).sort((a,b) => b[1].date > a[1].date ? 1 : -1);
+  const eventList = Object.entries(byEvent).sort((a,b) => new Date(b[1].date) - new Date(a[1].date));
   if (!eventList.length) {
     document.getElementById('history-content').innerHTML =
       `<p style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">No 2026 results found.</p>`;
