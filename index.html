@@ -864,12 +864,15 @@ function findPastWinners(tournamentName) {
   const winners = [];
   const seenSeasons = new Set();
 
-  // Sort results by date descending to get most recent first
-  const sorted = [...ALL_RESULTS].sort((a,b) => {
-    const da = a['Date'] || '';
-    const db = b['Date'] || '';
-    return new Date(db) - new Date(da);
-  });
+  // Sort results by date descending — normalize M/D/YYYY and YYYY-MM-DD formats
+  const parseDate = s => {
+    if (!s) return 0;
+    // Handle M/D/YYYY format
+    const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mdy) return new Date(mdy[3], mdy[1]-1, mdy[2]).getTime();
+    return new Date(s).getTime() || 0;
+  };
+  const sorted = [...ALL_RESULTS].sort((a,b) => parseDate(b['Date']) - parseDate(a['Date']));
 
   for (const r of sorted) {
     if (parseInt(r['Finish']) !== 1) continue;
