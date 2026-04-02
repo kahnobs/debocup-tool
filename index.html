@@ -136,6 +136,7 @@
   <div class="top-tabs">
     <button class="top-tab active" onclick="showTopTab('enter',this)">Enter results</button>
     <button class="top-tab" onclick="showTopTab('preview',this)">Week preview</button>
+    <button class="top-tab" onclick="showTopTab('ownership',this)">Ownership</button>
     <button class="top-tab" onclick="showTopTab('cutsweat',this)">Cut sweat</button>
     <button class="top-tab" onclick="showTopTab('history',this)">Recent results</button>
     <button class="top-tab" onclick="showTopTab('live-standings',this)">Current standings</button>
@@ -263,6 +264,36 @@
           <button class="copy-btn" onclick="copyEl('preview-post-text',this)">Copy</button>
           <p style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-top:4px;">Attach your pre-made preview card graphic when posting to X.</p>
         </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- OWNERSHIP TAB -->
+  <div id="top-ownership" style="display:none;">
+
+    <div class="card">
+      <div class="section-label">Ownership snapshot</div>
+      <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:12px;">Import your DK CSV first, then fill in the event details below to generate the ownership post and image.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div class="field-group"><label>Tournament name</label><input type="text" id="own-tournament" placeholder="e.g. Valero Texas Open"></div>
+        <div class="field-group"><label>Week #</label><input type="text" id="own-week" placeholder="e.g. Week 12"></div>
+      </div>
+      <button class="calc-btn" onclick="generateOwnership()">Generate ownership post</button>
+    </div>
+
+    <div id="ownership-output" style="display:none;">
+      <div class="card">
+        <div class="section-label">Post text</div>
+        <div class="output-box" id="ownership-post"></div>
+        <button class="copy-btn" onclick="copyEl('ownership-post',this)">Copy</button>
+      </div>
+      <div class="card">
+        <div class="section-label">Ownership image — attach to your X post</div>
+        <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:12px;">Right-click to save, or use the download button below.</p>
+        <canvas id="ownership-canvas" style="max-width:100%;border-radius:var(--radius);border:0.5px solid var(--border);"></canvas>
+        <br><br>
+        <button class="copy-btn" onclick="downloadOwnershipImage()">Download image</button>
       </div>
     </div>
 
@@ -922,6 +953,142 @@ function generatePreviewPost() {
 
 loadAll();
 
+
+// ── Ownership ─────────────────────────────────────────────────────────────
+
+function generateOwnership() {
+  const tournament = document.getElementById('own-tournament').value || 'Tournament';
+  const week = document.getElementById('own-week').value || '';
+
+  // Build golfer ownership from imported lineups
+  const rows = document.querySelectorAll('#rows-container .result-row');
+  const totalPlayers = rows.length;
+  if (!totalPlayers) { alert('Import a DK CSV first.'); return; }
+
+  const golferMap = {};
+  rows.forEach(row => {
+    const player = row.querySelector('.p-sel').value;
+    const lineup = row.querySelector('.lineup-inp')?.value || '';
+    if (!lineup || !player) return;
+    lineup.split(',').map(g => g.trim()).filter(Boolean).forEach(golfer => {
+      if (!golferMap[golfer]) golferMap[golfer] = [];
+      golferMap[golfer].push(player);
+    });
+  });
+
+  // Sort by ownership descending
+  const sorted = Object.entries(golferMap).sort((a,b) => b[1].length - a[1].length);
+
+  // Text post
+  const header = 'DEBO CUP OWNERSHIP' + (week ? '\n\n' + week + ' — ' + tournament : '\n\n' + tournament);
+  document.getElementById('ownership-post').textContent = header + '\n\ndebocup.com';
+
+  // Render canvas
+  renderOwnershipCanvas(sorted, tournament, week, totalPlayers);
+
+  document.getElementById('ownership-output').style.display = 'block';
+  document.getElementById('ownership-output').scrollIntoView({behavior:'smooth'});
+}
+
+function renderOwnershipCanvas(sorted, tournament, week, totalPlayers) {
+  const canvas = document.getElementById('ownership-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  const W = 920;
+  const ROW_H = 30;
+  const HEADER_H = 44;
+  const TITLE_H = 56;
+  const PADDING = 16;
+  const H = TITLE_H + HEADER_H + sorted.length * ROW_H + PADDING;
+
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // Background
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, 0, W, H);
+
+  // Title
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 20px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  const title = week ? week + ' — ' + tournament : tournament;
+  ctx.fillText(title, W/2, 32);
+
+  // Column layout: Golfer | Own% | Owners
+  const COL  = [0, 220, 300];
+  const colW = [220, 80, 620];
+
+  // Header
+  const hy = TITLE_H;
+  ctx.fillStyle = '#2a2a2a';
+  ctx.fillRect(0, hy, W, HEADER_H);
+  ctx.fillStyle = '#aaaaaa';
+  ctx.font = 'bold 13px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Golfer',     COL[0] + colW[0]/2, hy + 27);
+  ctx.fillText('Own%',       COL[1] + colW[1]/2, hy + 27);
+  ctx.fillText('Owners',     COL[2] + (W - COL[2])/2, hy + 27);
+
+  // Rows
+  sorted.forEach(([golfer, owners], i) => {
+    const y = TITLE_H + HEADER_H + i * ROW_H;
+    ctx.fillStyle = i % 2 === 0 ? '#222222' : '#1e1e1e';
+    ctx.fillRect(0, y, W, ROW_H);
+
+    const pct = ((owners.length / totalPlayers) * 100).toFixed(2) + '%';
+    const isTop = i < 4; // bold top 4 by ownership
+
+    // Golfer name
+    ctx.fillStyle = '#ffffff';
+    ctx.font = (isTop ? 'bold' : 'normal') + ' 13px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(golfer, COL[0] + 8, y + 20);
+
+    // Own%
+    ctx.fillStyle = isTop ? '#ffffff' : '#cccccc';
+    ctx.font = (isTop ? 'bold' : 'normal') + ' 13px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(pct, COL[1] + colW[1]/2, y + 20);
+
+    // Owners
+    ctx.fillStyle = isTop ? '#ffffff' : '#aaaaaa';
+    ctx.font = (isTop ? 'bold' : 'normal') + ' 12px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(owners.join(', '), COL[2] + 8, y + 20);
+
+    // Divider
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, y + ROW_H);
+    ctx.lineTo(W, y + ROW_H);
+    ctx.stroke();
+  });
+
+  // Column dividers
+  ctx.strokeStyle = '#333333';
+  ctx.lineWidth = 0.5;
+  [COL[1], COL[2]].forEach(x => {
+    ctx.beginPath();
+    ctx.moveTo(x, TITLE_H);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+  });
+}
+
+function downloadOwnershipImage() {
+  const canvas = document.getElementById('ownership-canvas');
+  const link = document.createElement('a');
+  link.download = 'debo-cup-ownership.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
 // ── DataGolf Screenshot Parser ────────────────────────────────────────────
 
 function handleDGDrop(e) {
@@ -1122,7 +1289,7 @@ function buildCutSweatFromLineups() {
 // Auto-build when switching to Cut Sweat tab
 const origShowTopTab = showTopTab;
 function showTopTab(name, btn) {
-  ['enter','preview','cutsweat','history','live-standings'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
+  ['enter','preview','ownership','cutsweat','history','live-standings'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
   document.querySelectorAll('.top-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if (name === 'cutsweat') buildCutSweatFromLineups();
