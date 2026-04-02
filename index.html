@@ -993,7 +993,24 @@ function generateOwnership() {
 function renderOwnershipCanvas(sorted, tournament, week, totalPlayers) {
   const canvas = document.getElementById('ownership-canvas');
   const dpr = window.devicePixelRatio || 1;
-  const W = 920;
+  // Auto-size canvas width based on longest owners string
+  const tempCanvas = document.createElement('canvas');
+  const tempCtx = tempCanvas.getContext('2d');
+  tempCtx.font = '12px Arial, sans-serif';
+  const maxOwners = sorted.reduce((max, [,owners]) => {
+    const w = tempCtx.measureText(owners.join(', ')).width;
+    return w > max ? w : max;
+  }, 0);
+  const maxGolfer = sorted.reduce((max, [golfer]) => {
+    const w = tempCtx.measureText(golfer).width;
+    return w > max ? w : max;
+  }, 0);
+
+  const COL_GOLFER = Math.max(160, Math.ceil(maxGolfer) + 20);
+  const COL_OWN = 70;
+  const COL_OWNERS = Math.max(200, Math.ceil(maxOwners) + 20);
+  const W = COL_GOLFER + COL_OWN + COL_OWNERS + 16;
+
   const ROW_H = 30;
   const HEADER_H = 44;
   const TITLE_H = 56;
@@ -1020,8 +1037,8 @@ function renderOwnershipCanvas(sorted, tournament, week, totalPlayers) {
   ctx.fillText(title, W/2, 32);
 
   // Column layout: Golfer | Own% | Owners
-  const COL  = [0, 220, 300];
-  const colW = [220, 80, 620];
+  const COL  = [0, COL_GOLFER, COL_GOLFER + COL_OWN];
+  const colW = [COL_GOLFER, COL_OWN, COL_OWNERS];
 
   // Header
   const hy = TITLE_H;
@@ -1032,7 +1049,7 @@ function renderOwnershipCanvas(sorted, tournament, week, totalPlayers) {
   ctx.textAlign = 'center';
   ctx.fillText('Golfer',     COL[0] + colW[0]/2, hy + 27);
   ctx.fillText('Own%',       COL[1] + colW[1]/2, hy + 27);
-  ctx.fillText('Owners',     COL[2] + (W - COL[2])/2, hy + 27);
+  ctx.fillText('Owners',     COL[2] + colW[2]/2, hy + 27);
 
   // Rows
   sorted.forEach(([golfer, owners], i) => {
