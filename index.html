@@ -867,10 +867,9 @@ function onPreviewEventSelect() {
   document.getElementById('prev-pga-champ').value = row['Defending PGA Champion'] || '';
   document.getElementById('prev-debo-champ').value = row['Defending DEBO Champion'] || '';
 
-  // Calculate week number from schedule position
-  const COMPLETED_WEEKS = 11;
-  const weekNum = SCHEDULE_DATA.filter(r => r['Tournament']).indexOf(row) + 1 + COMPLETED_WEEKS;
-  document.getElementById('prev-week').value = 'Week ' + weekNum;
+  // Read week number from schedule sheet (column A = Week #)
+  const weekNum = row['Week #'] || row['Week#'] || row['Week'] || '';
+  document.getElementById('prev-week').value = weekNum ? 'Week ' + weekNum : '';
 
   // Look up past winners
   const pastWinners = findPastWinners(row['Tournament'] || '');
@@ -955,6 +954,14 @@ loadAll();
 
 
 // ── Ownership ─────────────────────────────────────────────────────────────
+
+function syncOwnershipFromPreview() {
+  // Pull tournament and week from preview tab if already selected
+  const tournament = document.getElementById('prev-tournament')?.value || '';
+  const week = document.getElementById('prev-week')?.value || '';
+  if (tournament) document.getElementById('own-tournament').value = tournament;
+  if (week) document.getElementById('own-week').value = week;
+}
 
 function generateOwnership() {
   const tournament = document.getElementById('own-tournament').value || 'Tournament';
@@ -1310,6 +1317,7 @@ function showTopTab(name, btn) {
   document.querySelectorAll('.top-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if (name === 'cutsweat') buildCutSweatFromLineups();
+  if (name === 'ownership') syncOwnershipFromPreview();
 }
 
 function parseScore(s) {
