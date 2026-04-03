@@ -1213,26 +1213,43 @@ Return only valid JSON, nothing else.`
       tableRows.forEach(row => {
         const golferName = row.querySelector('td:first-child')?.textContent.trim();
         // Try to match by last name or full name
-        const dgGolfer = parsed.golfers.find(g => {
-          const dgName = (g.name || '').toLowerCase().trim();
-          const rowName = (golferName || '').toLowerCase().trim();
-          if (!dgName || !rowName) return false;
-          // Exact match
-          if (dgName === rowName) return true;
-          // Last name match
-          const dgLast = dgName.split(' ').pop();
-          const rowLast = rowName.split(' ').pop();
-          if (dgLast === rowLast && dgLast.length > 3) return true;
-          // Contains match (handles hyphenated names, accents etc.)
-          if (dgName.includes(rowLast) || rowName.includes(dgLast)) return true;
-          // Normalize accents and try again
-          const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'');
-          if (norm(dgName) === norm(rowName)) return true;
-          if (norm(dgLast) === norm(rowLast) && rowLast.length > 3) return true;
-          // First 4 chars of last name match (handles Echavarria/Echevarria type variants)
-          if (dgLast.length > 4 && rowLast.length > 4 && dgLast.substring(0,5) === rowLast.substring(0,5)) return true;
-          return false;
-        });
+        const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+        const dgGolfer = (() => {
+          const rowName = norm(golferName || '');
+          if (!rowName) return null;
+          const rowParts = rowName.split(' ');
+          const rowFirst = rowParts[0] || '';
+          const rowLast = rowParts[rowParts.length - 1] || '';
+
+          // Score each candidate — higher = better match
+          let best = null, bestScore = 0;
+          for (const g of parsed.golfers) {
+            const dgName = norm(g.name || '');
+            if (!dgName) continue;
+            const dgParts = dgName.split(' ');
+            const dgFirst = dgParts[0] || '';
+            const dgLast = dgParts[dgParts.length - 1] || '';
+            let score = 0;
+
+            // Exact full name match — highest priority
+            if (dgName === rowName) { score = 100; }
+            // Last name exact + first name exact
+            else if (dgLast === rowLast && dgFirst === rowFirst) { score = 90; }
+            // Last name exact + first name starts with same letter
+            else if (dgLast === rowLast && dgFirst[0] === rowFirst[0]) { score = 70; }
+            // Last name exact only (risky for common names)
+            else if (dgLast === rowLast && rowLast.length > 3) { score = 40; }
+            // Accent-normalized full name
+            else if (dgName === rowName) { score = 85; }
+            // First 5 chars of last name (Echavarria variants)
+            else if (dgLast.length > 4 && rowLast.length > 4 && dgLast.substring(0,5) === rowLast.substring(0,5)) { score = 35; }
+            // Contains match
+            else if (dgName.includes(rowLast) || rowName.includes(dgLast)) { score = 30; }
+
+            if (score > bestScore) { bestScore = score; best = g; }
+          }
+          return bestScore > 0 ? best : null;
+        })();
         if (dgGolfer) {
           const scoreInp = row.querySelector('.score-inp');
           const makecutInp = row.querySelector('.makecut-inp');
