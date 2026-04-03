@@ -310,12 +310,24 @@
     </div>
 
     <div class="card">
-      <div class="section-label">Step 2 — Upload DataGolf screenshot</div>
-      <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">Screenshot the DataGolf page after entering your golfers. Claude will extract all scores and cut odds automatically.</p>
+      <div class="section-label">Step 2a — Upload cut line probabilities screenshot</div>
+      <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">Screenshot the cut line probabilities section from DataGolf. Claude will extract the cut line odds automatically.</p>
+      <div class="drop-zone" id="dg-cutline-zone" onclick="document.getElementById('dg-cutline-img').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDGCutlineDrop(event)" style="padding:1.25rem;">
+        <input type="file" id="dg-cutline-img" accept="image/*" onchange="handleDGCutlineFile(this.files[0])">
+        <div class="dz-icon">&#9986;</div>
+        <div class="dz-title" id="dg-cutline-title">Drop cut line screenshot here</div>
+        <div class="dz-sub">or click to browse</div>
+      </div>
+      <div id="dg-cutline-status" style="display:none;margin-top:10px;font-size:12px;font-family:'Helvetica Neue',Arial,sans-serif;color:var(--text2);"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Step 2b — Upload golfer scores screenshot</div>
+      <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:10px;">Screenshot the golfer list from DataGolf. Claude will extract scores and make cut % for each golfer.</p>
       <div class="drop-zone" id="dg-drop-zone" onclick="document.getElementById('dg-screenshot').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDGDrop(event)" style="padding:1.25rem;">
         <input type="file" id="dg-screenshot" accept="image/*" onchange="handleDGFile(this.files[0])">
         <div class="dz-icon">&#128247;</div>
-        <div class="dz-title" id="dg-drop-title">Drop DataGolf screenshot here</div>
+        <div class="dz-title" id="dg-drop-title">Drop golfer scores screenshot here</div>
         <div class="dz-sub">or click to browse</div>
       </div>
       <div id="dg-parse-status" style="display:none;margin-top:10px;font-size:12px;font-family:'Helvetica Neue',Arial,sans-serif;color:var(--text2);"></div>
@@ -1113,6 +1125,79 @@ function downloadOwnershipImage() {
   link.click();
 }
 
+
+function handleDGCutlineDrop(e) {
+  e.preventDefault();
+  document.getElementById('dg-cutline-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleDGCutlineFile(file);
+}
+
+function handleDGCutlineFile(file) {
+  if (!file) return;
+  const apiKey = localStorage.getItem('claude_api_key');
+  if (!apiKey) { alert('Please enter your Claude API key in the Recap Post tab first.'); return; }
+  const status = document.getElementById('dg-cutline-status');
+  status.style.display = 'block';
+  status.textContent = 'Reading cut line screenshot...';
+  document.getElementById('dg-cutline-title').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const base64 = e.target.result.split(',')[1];
+    const mediaType = file.type || 'image/png';
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 500,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+              { type: 'text', text: `This is a DataGolf cut line probabilities screenshot. Extract the cut line data and return JSON only.
+
+The screenshot may show large numbers like "-3 16.7%" or "-2 40.0%" representing score and make-cut probability.
+Return: {"cut_lines": [{"score": "-3", "pct": "16.7%"}, {"score": "-2", "pct": "40.0%"}, ...]}
+Include up to 3 cut line entries. Return only valid JSON, nothing else.` }
+            ]
+          }]
+        })
+      });
+      if (!response.ok) { const err = await response.json(); throw new Error(err.error?.message || 'API error'); }
+      const data = await response.json();
+      const text = data.content[0]?.text || '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Could not parse response');
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.cut_lines && parsed.cut_lines.length) {
+        parsed.cut_lines.slice(0, 3).forEach((cl, i) => {
+          const n = i + 1;
+          const sEl = document.getElementById('cut-s' + n);
+          const pEl = document.getElementById('cut-p' + n);
+          if (sEl) sEl.value = cl.score?.toString().trim() || '';
+          if (pEl) pEl.value = cl.pct?.toString().trim() || '';
+        });
+        status.textContent = `Cut line parsed — ${parsed.cut_lines.length} entries found.`;
+        status.style.color = '#2d6a4f';
+      } else {
+        status.textContent = 'No cut line data found — enter manually.';
+        status.style.color = '#9b2226';
+      }
+    } catch(e) {
+      status.textContent = 'Could not parse: ' + e.message;
+      status.style.color = '#9b2226';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
 // ── DataGolf Screenshot Parser ────────────────────────────────────────────
 
 function handleDGDrop(e) {
@@ -1194,18 +1279,6 @@ Return only valid JSON, nothing else.`
     if (!jsonMatch) throw new Error('Could not parse response');
     const parsed = JSON.parse(jsonMatch[0]);
 
-    // Apply cut line odds to form fields
-    if (parsed.cut_lines && parsed.cut_lines.length) {
-      const cls = parsed.cut_lines.slice(0, 3);
-      cls.forEach((cl, i) => {
-        const n = i + 1;
-        const sEl = document.getElementById('cut-s' + n);
-        const pEl = document.getElementById('cut-p' + n);
-        if (sEl) sEl.value = cl.score?.toString().trim() || '';
-        if (pEl) pEl.value = cl.pct?.toString().trim() || '';
-      });
-    }
-
     // Apply scores to the cut sweat table rows
     if (parsed.golfers && parsed.golfers.length) {
       const tableRows = document.querySelectorAll('#cut-sweat-tbody tr');
@@ -1213,7 +1286,7 @@ Return only valid JSON, nothing else.`
       tableRows.forEach(row => {
         const golferName = row.querySelector('td:first-child')?.textContent.trim();
         // Try to match by last name or full name
-        const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+        const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
         const dgGolfer = (() => {
           const rowName = norm(golferName || '');
           if (!rowName) return null;
