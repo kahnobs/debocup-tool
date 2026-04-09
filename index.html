@@ -147,6 +147,12 @@
 
     <div class="card">
       <div class="section-label">Event details</div>
+      <div class="field-group" style="margin-bottom:12px;">
+        <label>Select from schedule (auto-fills details)</label>
+        <select id="evt-schedule-select" onchange="onEnterEventSelect()" style="width:100%;">
+          <option value="">-- select event or fill in manually --</option>
+        </select>
+      </div>
       <div class="meta-grid">
         <div class="field-group"><label>Tournament name</label><input type="text" id="evt-name" placeholder="e.g. Texas Children's Houston Open"></div>
         <div class="field-group"><label>Event date</label><input type="date" id="evt-date"></div>
@@ -154,7 +160,7 @@
           <select id="evt-type"><option value="Regular">Regular</option><option value="Signature">Signature</option><option value="Major">Major</option></select>
         </div>
         <div class="field-group"><label>Week # of season</label><input type="number" id="evt-week" placeholder="e.g. 11" min="1" max="33"></div>
-        <div class="field-group" style="grid-column:1/-1;"><label>PGA Tour winner (optional — for AI recap)</label><input type="text" id="pga-winner" placeholder="e.g. Matt Fitzpatrick"></div>
+        <div class="field-group" style="grid-column:1/-1;"><label>PGA Tour winner (optional — for recap)</label><input type="text" id="pga-winner" placeholder="e.g. Matt Fitzpatrick"></div>
       </div>
     </div>
 
@@ -852,18 +858,69 @@ async function loadSchedule() {
 }
 
 function populateScheduleDropdown() {
+  // Populate Week Preview dropdown
   const sel = document.getElementById('preview-event-select');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">-- select event --</option>';
-  SCHEDULE_DATA.forEach((row, i) => {
-    const name = row['Tournament'] || '';
-    const date = row['Start Date'] || '';
-    if (!name) return;
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = name + (date ? ' (' + date.substring(0,10) + ')' : '');
-    sel.appendChild(opt);
-  });
+  if (sel) {
+    sel.innerHTML = '<option value="">-- select event --</option>';
+    SCHEDULE_DATA.forEach((row, i) => {
+      const name = row['Tournament'] || '';
+      const date = row['Start Date'] || '';
+      if (!name) return;
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = name + (date ? ' (' + date.substring(0,10) + ')' : '');
+      sel.appendChild(opt);
+    });
+  }
+
+  // Populate Enter Results dropdown
+  const sel2 = document.getElementById('evt-schedule-select');
+  if (sel2) {
+    sel2.innerHTML = '<option value="">-- select event or fill in manually --</option>';
+    SCHEDULE_DATA.forEach((row, i) => {
+      const name = row['Tournament'] || '';
+      const date = row['Start Date'] || '';
+      if (!name) return;
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = name + (date ? ' (' + date.substring(0,10) + ')' : '');
+      sel2.appendChild(opt);
+    });
+  }
+}
+
+function onEnterEventSelect() {
+  const sel = document.getElementById('evt-schedule-select');
+  const idx = parseInt(sel.value);
+  if (isNaN(idx)) return;
+  const row = SCHEDULE_DATA[idx];
+  if (!row) return;
+
+  // Auto-fill event details
+  document.getElementById('evt-name').value = row['Tournament'] || '';
+
+  // Parse date from Start Date — convert M/D/YYYY to YYYY-MM-DD for date input
+  const rawDate = row['Start Date'] || '';
+  if (rawDate) {
+    const mdy = rawDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mdy) {
+      const yyyy = mdy[3], mm = mdy[1].padStart(2,'0'), dd = mdy[2].padStart(2,'0');
+      document.getElementById('evt-date').value = yyyy + '-' + mm + '-' + dd;
+    } else {
+      document.getElementById('evt-date').value = rawDate.substring(0,10);
+    }
+  }
+
+  // Event type
+  const evtType = row['Event Type'] || 'Regular';
+  const typeEl = document.getElementById('evt-type');
+  for (const opt of typeEl.options) {
+    if (opt.value === evtType) { typeEl.value = evtType; break; }
+  }
+
+  // Week number
+  const weekNum = row['Week #'] || row['Week#'] || row['Week'] || '';
+  if (weekNum) document.getElementById('evt-week').value = weekNum;
 }
 
 function onPreviewEventSelect() {
