@@ -896,31 +896,48 @@ function onEnterEventSelect() {
   const row = SCHEDULE_DATA[idx];
   if (!row) return;
 
-  // Auto-fill event details
-  document.getElementById('evt-name').value = row['Tournament'] || '';
+  const tournament = row['Tournament'] || '';
+  const weekNum = row['Week #'] || row['Week#'] || row['Week'] || '';
+  const weekLabel = weekNum ? 'Week ' + weekNum : '';
+  const evtType = row['Event Type'] || 'Regular';
 
-  // Parse date from Start Date — convert M/D/YYYY to YYYY-MM-DD for date input
+  // Parse date M/D/YYYY -> YYYY-MM-DD
   const rawDate = row['Start Date'] || '';
+  let isoDate = '';
   if (rawDate) {
     const mdy = rawDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (mdy) {
-      const yyyy = mdy[3], mm = mdy[1].padStart(2,'0'), dd = mdy[2].padStart(2,'0');
-      document.getElementById('evt-date').value = yyyy + '-' + mm + '-' + dd;
+      isoDate = mdy[3] + '-' + mdy[1].padStart(2,'0') + '-' + mdy[2].padStart(2,'0');
     } else {
-      document.getElementById('evt-date').value = rawDate.substring(0,10);
+      isoDate = rawDate.substring(0,10);
     }
   }
 
-  // Event type
-  const evtType = row['Event Type'] || 'Regular';
+  // ── Enter Results tab ──
+  document.getElementById('evt-name').value = tournament;
+  if (isoDate) document.getElementById('evt-date').value = isoDate;
   const typeEl = document.getElementById('evt-type');
-  for (const opt of typeEl.options) {
-    if (opt.value === evtType) { typeEl.value = evtType; break; }
+  for (const opt of typeEl.options) { if (opt.value === evtType) { typeEl.value = evtType; break; } }
+  if (weekNum) document.getElementById('evt-week').value = weekNum;
+
+  // ── Week Preview tab ──
+  const prevSel = document.getElementById('preview-event-select');
+  if (prevSel) {
+    for (const opt of prevSel.options) {
+      if (parseInt(opt.value) === idx) { prevSel.value = idx; break; }
+    }
+    onPreviewEventSelect();
   }
 
-  // Week number
-  const weekNum = row['Week #'] || row['Week#'] || row['Week'] || '';
-  if (weekNum) document.getElementById('evt-week').value = weekNum;
+  // ── Ownership tab ──
+  const ownTournament = document.getElementById('own-tournament');
+  const ownWeek = document.getElementById('own-week');
+  if (ownTournament) ownTournament.value = tournament;
+  if (ownWeek) ownWeek.value = weekLabel;
+
+  // ── Cut Sweat tab ──
+  const cutTournament = document.getElementById('cut-tournament');
+  if (cutTournament) cutTournament.value = tournament + (weekLabel ? ' (' + weekLabel + ')' : '');
 }
 
 function onPreviewEventSelect() {
