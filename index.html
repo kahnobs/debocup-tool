@@ -743,7 +743,7 @@ function calculate() {
   const movers = rows.filter(r => (oldRanks.indexOf(r.player)-newRanks.indexOf(r.player)) >= 2);
 
   document.getElementById('sheet-results').textContent =
-    rows.map(r=>`${seasonId}\t${dateStr}\t2026 Regular\t${evtName}\t${r.player}\t${r.finish}\t${r.dk}\tFALSE\t${evtType}\t${r.prize}\t${r.lineup}`).join('\n');
+    rows.map(r=>`${seasonId}\t${dateStr}\t2026 Regular\t${evtName}\t${r.player}\t${r.finish}\t${r.dk}\t${evtType==='Major'?'TRUE':'FALSE'}\t${evtType}\t${r.prize}\t${r.lineup}`).join('\n');
   document.getElementById('sheet-summary').textContent =
     `${seasonId}\t${dateStr}\t2026 Regular\t${evtName}\t${evtType==='Major'}\t${winner?.player||''}\t${winner?.dk||''}\t${rows.length}\t${evtType}`;
   buildRecapTemplate(evtName, evtWeek, winner, document.getElementById('pga-winner').value || '');
@@ -1793,7 +1793,7 @@ async function pushToSheets() {
 
   const resultRows = rows.map(r => [
     seasonId, dateStr, '2026 Regular', evtName,
-    r.player, r.finish, r.dk, 'FALSE', evtType, r.prize, r.lineup
+    r.player, r.finish, r.dk, evtType === 'Major' ? 'TRUE' : 'FALSE', evtType, r.prize, r.lineup
   ]);
 
   // ── Detect ties and calculate DC adjustments ──────────────────────────
