@@ -451,6 +451,7 @@ const CSV_PLAYERS  = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gv
 const GID_PLAYERS  = '437546101';
 const CSV_STANDINGS = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=494949199`;
 const CSV_RESULTS   = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=0`;
+const CSV_TIES      = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=1984755411`;
 
 const DC_PTS = {1:25,2:15,3:10,4:7,5:5,6:4,7:3,8:2,9:1,10:1};
 const PRIZE  = {1:10,2:5,3:3,4:2};
@@ -470,6 +471,7 @@ let DK_USERNAME_MAP = {...DK_USERNAME_MAP_FALLBACK};
 let CURRENT_STANDINGS = {};
 let PLAYERS = [];
 let ALL_RESULTS = [];
+let ALL_TIES = [];
 let pendingImport = [];
 
 function setStatus(state, msg) {
@@ -542,6 +544,10 @@ async function loadAll() {
   try {
     const text = await fetchCSV(CSV_RESULTS);
     ALL_RESULTS = parseCSVText(text);
+    try {
+      const tieText = await fetchCSV(CSV_TIES);
+      ALL_TIES = parseCSVText(tieText);
+    } catch(e) { ALL_TIES = []; }
     renderHistory();
     resultsOk = true;
   } catch(e) {
@@ -1995,6 +2001,24 @@ function renderTrend() {
       cum += (!isNaN(fin) && fin > 0) ? (DC_PTS[fin] || 0) : 0;
       playerCumPts[p][evt] = cum;
     });
+  });
+
+  // Apply tie adjustments from TIES tab
+  // TIES columns: Season, Event, Player, Adjustment
+  ALL_TIES.forEach(t => {
+    const p = t['Player'] || t[2];
+    const evt = t['Event'] || t[1];
+    const adj = parseFloat(t['Adjustment'] || t[3]) || 0;
+    if (p && evt && adj && playerCumPts[p]) {
+      // Add adjustment to this event and all subsequent events
+      let applying = false;
+      allEvents.forEach(e => {
+        if (e === evt) applying = true;
+        if (applying && playerCumPts[p][e] !== undefined) {
+          playerCumPts[p][e] += adj;
+        }
+      });
+    }
   });
 
   // Rank at each event (full season)
