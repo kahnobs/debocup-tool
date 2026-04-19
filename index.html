@@ -2044,7 +2044,8 @@ function renderTrend() {
   sortedPlayers.forEach((p, pi) => {
     const color = TREND_COLORS[sortedPlayers.indexOf(p) % TREND_COLORS.length];
     const currentRank = ranksByEvent[lastEvt]?.[p] || '—';
-    const currentPts = Math.round((playerCumPts[p][lastEvt]||0) * 10) / 10;
+    const _rawPts = playerCumPts[p][lastEvt] || 0;
+    const currentPts = Number.isInteger(_rawPts) ? _rawPts : Math.round(_rawPts * 10) / 10;
 
     // Get rank series for display window
     const rankSeries = displayEvents.map(evt => ranksByEvent[evt]?.[p] || null);
