@@ -1946,7 +1946,7 @@ function renderTrend() {
   const emptyMsg = document.getElementById('trend-empty');
   if (!grid) return;
 
-  const season = ALL_RESULTS.filter(r => (r['Season']||'').includes('2026') && r['Player'] && r['Fantasy_Points'] !== undefined);
+  const season = ALL_RESULTS.filter(r => (r['Season']||'').includes('2026') && r['Player'] && r['Event']);
   if (!season.length) {
     emptyMsg.style.display = '';
     grid.style.display = 'none';
@@ -1984,7 +1984,8 @@ function renderTrend() {
     playerCumPts[p] = {};
     allEvents.forEach(evt => {
       const row = season.find(r => r['Player'] === p && r['Event'] === evt);
-      cum += row ? (parseFloat(row['Fantasy_Points']) || 0) : 0;
+      const fin = row ? parseInt(row['Finish']) : NaN;
+      cum += (!isNaN(fin) && fin > 0) ? (DC_PTS[fin] || 0) : 0;
       playerCumPts[p][evt] = cum;
     });
   });
