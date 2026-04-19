@@ -2004,13 +2004,15 @@ function renderTrend() {
   });
 
   // Apply tie adjustments from TIES tab
-  // TIES columns: Season, Event, Player, Adjustment
+  // TIES columns (positional): Season, Event, Player, Adjustment
+  // parseCSVText returns objects — use Object.values() to access by position
   ALL_TIES.forEach(t => {
-    const p = t['Player'] || t[2];
-    const evt = t['Event'] || t[1];
-    const adj = parseFloat(t['Adjustment'] || t[3]) || 0;
+    const vals = Object.values(t);
+    const p   = vals[2];
+    const evt = vals[1];
+    const adj = parseFloat(vals[3]) || 0;
     if (p && evt && adj && playerCumPts[p]) {
-      // Add adjustment to this event and all subsequent events
+      // Add adjustment to this event and all subsequent events (cumulative)
       let applying = false;
       allEvents.forEach(e => {
         if (e === evt) applying = true;
