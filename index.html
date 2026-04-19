@@ -140,6 +140,7 @@
     <button class="top-tab" onclick="showTopTab('cutsweat',this)">Cut sweat</button>
     <button class="top-tab" onclick="showTopTab('history',this)">Recent results</button>
     <button class="top-tab" onclick="showTopTab('live-standings',this)">Current standings</button>
+    <button class="top-tab" onclick="showTopTab('trend',this)">Standings trend</button>
   </div>
 
   <!-- ENTER RESULTS TAB -->
@@ -412,6 +413,33 @@
     <div class="card" style="padding:0.75rem;">
       <div class="section-label" style="margin-bottom:12px;">Current season standings — live from Google Sheets</div>
       <table class="standings-table" id="live-standings-tbl"></table>
+    </div>
+  </div>
+
+  <!-- STANDINGS TREND TAB -->
+  <div id="top-trend" style="display:none;">
+    <div class="card" style="padding:1rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
+        <div class="section-label" style="margin-bottom:0;">Standings movement over the season</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <label style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">Show last</label>
+          <select id="trend-weeks" onchange="renderTrend()" style="font-size:12px;padding:4px 8px;width:auto;">
+            <option value="4">4 events</option>
+            <option value="6">6 events</option>
+            <option value="8">8 events</option>
+            <option value="0" selected>All events</option>
+          </select>
+          <label style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-left:8px;">Highlight</label>
+          <select id="trend-player" onchange="renderTrend()" style="font-size:12px;padding:4px 8px;width:auto;">
+            <option value="">All players</option>
+          </select>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <canvas id="trend-canvas" style="display:block;max-width:100%;"></canvas>
+      </div>
+      <div id="trend-legend" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;"></div>
+      <p id="trend-empty" style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;display:none;">No results data available — check that the sheet is publicly readable.</p>
     </div>
   </div>
 
@@ -722,15 +750,14 @@ function calculate() {
 
   const SEASON_BONUS = [350, 150, 60];
   document.getElementById('standings-tbl').innerHTML =
-    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Season $</th><th style="text-align:right">End of season bonus</th><th style="text-align:right">Projected total</th></tr></thead><tbody>` +
+    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Season $</th><th style="text-align:right">End of season bonus</th></tr></thead><tbody>` +
     sorted.map(([p,s],i) => {
       const delta = (oldRanks.indexOf(p)+1)-(i+1);
       const dHtml = delta>0?` <span class="delta-up">▲${delta}</span>`:delta<0?` <span class="delta-dn">▼${Math.abs(delta)}</span>`:'';
       const badge = i<3?['rank-1','rank-2','rank-3'][i]:'';
       const bonus = SEASON_BONUS[i] || 0;
       const bonusLabel = i===0 ? '<span style="color:#b5860d;font-weight:600;">$350 champion</span>' : i===1 ? '<span style="color:#6b6a64;">$150 runner-up</span>' : i===2 ? '<span style="color:#7a4a1e;">$60 third place</span>' : '<span style="color:var(--color-text-tertiary,#9e9d97);">—</span>';
-      const total = s.prize + bonus;
-      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${p}${dHtml}</td><td style="text-align:right;font-weight:600">${s.pts}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">$${s.prize}</td><td style="text-align:right;">${bonusLabel}</td><td style="text-align:right;font-weight:600;">$${total}</td></tr>`;
+      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${p}${dHtml}</td><td style="text-align:right;font-weight:600">${s.pts}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">$${s.prize}</td><td style="text-align:right;">${bonusLabel}</td></tr>`;
     }).join('') + `</tbody>`;
 
   const dateStr = evtDate || 'TBD';
@@ -775,13 +802,11 @@ function renderLiveStandings() {
   const sorted = Object.entries(CURRENT_STANDINGS).sort((a,b) => b[1].pts - a[1].pts);
   const LIVE_BONUS = [350, 150, 60];
   document.getElementById('live-standings-tbl').innerHTML =
-    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Season $</th><th style="text-align:right">End of season bonus</th><th style="text-align:right">Projected total</th></tr></thead><tbody>` +
+    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Season $</th><th style="text-align:right">End of season bonus</th></tr></thead><tbody>` +
     sorted.map(([p,s],i) => {
       const badge = i<3?['rank-1','rank-2','rank-3'][i]:'';
-      const bonus = LIVE_BONUS[i] || 0;
       const bonusLabel = i===0 ? '<span style="color:#b5860d;font-weight:600;">$350 champion</span>' : i===1 ? '<span style="color:#6b6a64;">$150 runner-up</span>' : i===2 ? '<span style="color:#7a4a1e;">$60 third place</span>' : '—';
-      const total = s.prize + bonus;
-      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${p}</td><td style="text-align:right;font-weight:600">${s.pts}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">$${s.prize}</td><td style="text-align:right;">${bonusLabel}</td><td style="text-align:right;font-weight:600;">$${total}</td></tr>`;
+      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${p}</td><td style="text-align:right;font-weight:600">${s.pts}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">$${s.prize}</td><td style="text-align:right;">${bonusLabel}</td></tr>`;
     }).join('') + `</tbody>`;
 }
 
@@ -1477,11 +1502,12 @@ function buildCutSweatFromLineups() {
 // Auto-build when switching to Cut Sweat tab
 const origShowTopTab = showTopTab;
 function showTopTab(name, btn) {
-  ['enter','preview','ownership','cutsweat','history','live-standings'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
+  ['enter','preview','ownership','cutsweat','history','live-standings','trend'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
   document.querySelectorAll('.top-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if (name === 'cutsweat') buildCutSweatFromLineups();
   if (name === 'ownership') syncOwnershipFromPreview();
+  if (name === 'trend') { populateTrendPlayerSelect(); renderTrend(); }
 }
 
 function parseScore(s) {
@@ -1896,6 +1922,231 @@ window.addEventListener('load', () => {
   script.onload = initGoogleAuth;
   document.head.appendChild(script);
 });
+
+
+
+// ── Standings Trend ───────────────────────────────────────────────────────
+
+const TREND_COLORS = [
+  '#b5860d','#2d6a4f','#9b2226','#1a6091','#6a0572',
+  '#c05c00','#1b4332','#4a1942','#0d3b6e','#5c3317',
+  '#2c6e49','#7c3d12'
+];
+
+function populateTrendPlayerSelect() {
+  const sel = document.getElementById('trend-player');
+  if (!sel) return;
+  const players = [...new Set(ALL_RESULTS.filter(r=>(r['Season']||'').includes('2026')).map(r=>r['Player']).filter(Boolean))].sort();
+  players.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    sel.appendChild(opt);
+  });
+}
+
+function renderTrend() {
+  const canvas = document.getElementById('trend-canvas');
+  const legend = document.getElementById('trend-legend');
+  const emptyMsg = document.getElementById('trend-empty');
+  if (!canvas) return;
+
+  const season = ALL_RESULTS.filter(r => (r['Season']||'').includes('2026') && r['Player'] && r['Fantasy_Points'] !== undefined);
+  if (!season.length) {
+    emptyMsg.style.display = '';
+    canvas.style.display = 'none';
+    return;
+  }
+  emptyMsg.style.display = 'none';
+  canvas.style.display = 'block';
+
+  // Build cumulative DC pts per event per player
+  const parseDate = s => {
+    if (!s) return 0;
+    const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mdy) return new Date(mdy[3], mdy[1]-1, mdy[2]).getTime();
+    return new Date(s).getTime() || 0;
+  };
+
+  // Get ordered event list by date
+  const eventMap = {};
+  season.forEach(r => {
+    const evt = r['Event'] || '';
+    if (!evt) return;
+    if (!eventMap[evt]) eventMap[evt] = r['Date'] || '';
+  });
+  let events = Object.entries(eventMap).sort((a,b) => parseDate(a[1]) - parseDate(b[1])).map(e=>e[0]);
+
+  // Apply week filter
+  const wkFilter = parseInt(document.getElementById('trend-weeks').value) || 0;
+  if (wkFilter > 0 && events.length > wkFilter) events = events.slice(-wkFilter);
+
+  // Get all players in filtered range
+  const players = [...new Set(season.filter(r=>events.includes(r['Event']||'')).map(r=>r['Player']))].sort();
+
+  // For each player, compute cumulative DC pts after each event (within full season)
+  // We need cumulative totals from the full season but only show the selected window
+  const allEvents = Object.entries(eventMap).sort((a,b) => parseDate(a[1]) - parseDate(b[1])).map(e=>e[0]);
+
+  const playerCumPts = {}; // player -> { eventName: cumulativePts }
+  players.forEach(p => {
+    let cum = 0;
+    playerCumPts[p] = {};
+    allEvents.forEach(evt => {
+      const row = season.find(r => r['Player'] === p && r['Event'] === evt);
+      const dc = row ? (parseFloat(row['Fantasy_Points']) || 0) : 0;
+      cum += dc;
+      playerCumPts[p][evt] = cum;
+    });
+  });
+
+  // Compute standings rank at each event
+  // rank = position among all players who have played at least one event up to this point
+  const playerRanksByEvent = {}; // event -> {player: rank}
+  allEvents.forEach((evt, evtIdx) => {
+    const eventsUpTo = allEvents.slice(0, evtIdx + 1);
+    const active = players.filter(p => eventsUpTo.some(e => {
+      const row = season.find(r => r['Player'] === p && r['Event'] === e);
+      return !!row;
+    }));
+    const sorted = [...active].sort((a,b) => (playerCumPts[b][evt]||0) - (playerCumPts[a][evt]||0));
+    playerRanksByEvent[evt] = {};
+    sorted.forEach((p,i) => playerRanksByEvent[evt][p] = i+1);
+  });
+
+  // Only show filtered events
+  const displayEvents = events;
+  const totalPlayers = players.length;
+  const highlightPlayer = document.getElementById('trend-player').value;
+
+  // Canvas sizing
+  const dpr = window.devicePixelRatio || 1;
+  const W = Math.max(canvas.parentElement.clientWidth - 2, 400);
+  const PAD_L = 36, PAD_R = 16, PAD_T = 24, PAD_B = 48;
+  const chartW = W - PAD_L - PAD_R;
+  const chartH = Math.max(totalPlayers * 36, 200);
+  const H = chartH + PAD_T + PAD_B;
+
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // Background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines (horizontal — one per rank)
+  for (let r = 1; r <= totalPlayers; r++) {
+    const y = PAD_T + ((r - 1) / (totalPlayers - 1 || 1)) * chartH;
+    ctx.strokeStyle = r === 1 ? '#e8e4dc' : '#f0ede6';
+    ctx.lineWidth = r === 1 ? 1 : 0.5;
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - PAD_R, y); ctx.stroke();
+    // Rank label
+    ctx.fillStyle = '#9e9d97';
+    ctx.font = '10px Helvetica Neue, Arial, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(r, PAD_L - 6, y + 3.5);
+  }
+
+  // X axis event labels
+  const xStep = displayEvents.length > 1 ? chartW / (displayEvents.length - 1) : chartW;
+  displayEvents.forEach((evt, i) => {
+    const x = PAD_L + i * xStep;
+    ctx.fillStyle = '#9e9d97';
+    ctx.font = '10px Helvetica Neue, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    // Abbreviate event name
+    const abbr = evt.replace('Farmers Insurance Open','Farmers').replace('Genesis Invitational','Genesis')
+                    .replace('American Express','AmEx').replace('Masters Tournament','Masters')
+                    .replace('PGA National','PGA Natl').replace('Houston Open','Houston')
+                    .replace('Texas Open','Texas').replace('Sony Open','Sony')
+                    .replace('Phoenix Open','Phoenix').replace('Pebble Beach','Pebble')
+                    .replace('Valspar Championship','Valspar').replace('Players','Players')
+                    .replace(' Championship','').replace(' Invitational','');
+    ctx.fillText(abbr, x, H - PAD_B + 14);
+
+    // Vertical tick
+    ctx.strokeStyle = '#e0ddd6';
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(x, PAD_T); ctx.lineTo(x, H - PAD_B); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // Draw lines for each player
+  players.forEach((p, pi) => {
+    const color = TREND_COLORS[pi % TREND_COLORS.length];
+    const isHighlight = !highlightPlayer || p === highlightPlayer;
+    const lineAlpha = isHighlight ? 1 : 0.12;
+
+    ctx.globalAlpha = lineAlpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isHighlight ? (highlightPlayer && p === highlightPlayer ? 3 : 2) : 1;
+    ctx.setLineDash([]);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    let started = false;
+    ctx.beginPath();
+    displayEvents.forEach((evt, i) => {
+      const rank = playerRanksByEvent[evt]?.[p];
+      if (!rank) return;
+      const x = PAD_L + i * xStep;
+      const y = PAD_T + ((rank - 1) / (totalPlayers - 1 || 1)) * chartH;
+      if (!started) { ctx.moveTo(x, y); started = true; }
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Dots + rank labels at each point
+    displayEvents.forEach((evt, i) => {
+      const rank = playerRanksByEvent[evt]?.[p];
+      if (!rank) return;
+      const x = PAD_L + i * xStep;
+      const y = PAD_T + ((rank - 1) / (totalPlayers - 1 || 1)) * chartH;
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, isHighlight ? 4 : 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Label the final point with player name
+      if (i === displayEvents.length - 1 && isHighlight) {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = color;
+        ctx.font = `${p === highlightPlayer ? 'bold ' : ''}11px Helvetica Neue, Arial, sans-serif`;
+        ctx.textAlign = 'left';
+        // Avoid clipping on right edge
+        const labelX = x + 5;
+        const labelText = p + ' #' + rank;
+        if (labelX + ctx.measureText(labelText).width < W) {
+          ctx.fillText(labelText, labelX, y + 4);
+        }
+      }
+    });
+
+    ctx.globalAlpha = 1;
+  });
+
+  // Legend
+  legend.innerHTML = players.map((p, pi) => {
+    const color = TREND_COLORS[pi % TREND_COLORS.length];
+    const lastEvt = displayEvents[displayEvents.length - 1];
+    const rank = playerRanksByEvent[lastEvt]?.[p] || '—';
+    const pts = lastEvt ? Math.round((playerCumPts[p][lastEvt]||0) * 10) / 10 : '—';
+    const isHL = !highlightPlayer || p === highlightPlayer;
+    return `<span style="display:inline-flex;align-items:center;gap:5px;opacity:${isHL?1:0.35};cursor:pointer;"
+      onclick="document.getElementById('trend-player').value=document.getElementById('trend-player').value==='${p}'?'':'${p}';renderTrend()">
+      <span style="width:18px;height:3px;background:${color};border-radius:2px;display:inline-block;"></span>
+      <span style="color:var(--text);font-weight:${p===highlightPlayer?'700':'400'}">${p}</span>
+      <span style="color:var(--text2)">#${rank} · ${pts}pts</span>
+    </span>`;
+  }).join('');
+}
 
 </script>
 </body>
