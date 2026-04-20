@@ -499,12 +499,7 @@
       <div id="usage-league">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
           <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:var(--text2);" id="usage-league-sub"></div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <span style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">Sort:</span>
-            <button class="usage-sort-btn active" onclick="setUsageSort('owners',this)">Owners</button>
-            <button class="usage-sort-btn" onclick="setUsageSort('uses',this)">Total uses</button>
-            <button class="usage-sort-btn" onclick="setUsageSort('alpha',this)">A–Z</button>
-          </div>
+
         </div>
         <div id="usage-league-rows"></div>
         <button class="add-btn" id="usage-show-more" onclick="toggleUsageShowAll()" style="margin-top:8px;display:none;">Show all</button>
@@ -2299,7 +2294,7 @@ function setTrendCustom(input) {
 
 // ── Golfer Usage ──────────────────────────────────────────────────────────
 
-let _usageSortMode = 'owners';
+let _usageSortMode = 'uses';
 let _usageShowAll  = false;
 let _usageActivePlayer = null;
 const USAGE_INITIAL = 30;
@@ -2536,142 +2531,137 @@ function renderUsageCards() {
   const dpr = window.devicePixelRatio || 1;
   const COLS = 4;
   const ROWS = Math.ceil(players.length / COLS);
-  const CARD_W = 290;
-  const ROW_H = 34;          // height per golfer row
-  const CARD_HEAD = 52;      // player name + divider area
-  const CARD_PAD_BOT = 16;
-  const CARD_H = CARD_HEAD + topN * ROW_H + CARD_PAD_BOT;
-  const GAP = 14;
-  const PAD = 28;
-  const HEADER_H = 70;
-  const FOOTER_H = 44;
+
+  // Sizing — match the reference aesthetic
+  const CARD_W = 300;
+  const NAME_H = 56;       // player name section height
+  const ROW_H  = 38;       // each golfer row
+  const CARD_VPAD = 16;    // bottom padding inside card
+  const CARD_H = NAME_H + topN * ROW_H + CARD_VPAD;
+  const GAP    = 14;
+  const PAD    = 28;
+  const HEADER_H = 72;
+  const FOOTER_H = 46;
   const W = COLS * CARD_W + (COLS - 1) * GAP + PAD * 2;
   const H = HEADER_H + ROWS * CARD_H + (ROWS - 1) * GAP + PAD * 2 + FOOTER_H;
 
-  canvas.width = W * dpr;
+  canvas.width  = W * dpr;
   canvas.height = H * dpr;
-  canvas.style.width = W + 'px';
+  canvas.style.width  = W + 'px';
   canvas.style.height = H + 'px';
 
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
 
-  // Background
-  ctx.fillStyle = '#0d0d0d';
+  // Page background
+  ctx.fillStyle = '#111111';
   ctx.fillRect(0, 0, W, H);
 
-  // Header
+  // Page header
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 24px Arial, sans-serif';
+  ctx.font = 'bold 26px Arial, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('MOST USED GOLFERS', PAD, PAD + 26);
-  ctx.fillStyle = '#666666';
-  ctx.font = '13px Arial, sans-serif';
-  ctx.fillText('DEBO Cup 2026 · Top ' + topN + ' picks per player', PAD, PAD + 48);
+  ctx.fillText('MOST USED GOLFERS', PAD, PAD + 28);
+  ctx.fillStyle = '#888888';
+  ctx.font = '400 13px Arial, sans-serif';
+  ctx.fillText(Object.keys(playerData).reduce((s,p)=>s+Object.keys(playerData[p]).length,0) +
+    ' golfers used across ' +
+    [...new Set(Object.values(playerData).flatMap(d=>Object.values(d).flat()))].length +
+    ' events', PAD, PAD + 52);
 
-  // Cards
+  // Player cards
   players.forEach((player, pi) => {
     const col = pi % COLS;
     const row = Math.floor(pi / COLS);
     const cx = PAD + col * (CARD_W + GAP);
     const cy = HEADER_H + PAD + row * (CARD_H + GAP);
 
-    // Card background
-    ctx.fillStyle = '#1a1a1a';
+    const golfers = Object.entries(playerData[player] || {})
+      .sort((a,b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+
+    // Card bg
+    ctx.fillStyle = '#1c1c1c';
     ctx.beginPath();
     ctx.roundRect(cx, cy, CARD_W, CARD_H, 10);
     ctx.fill();
 
-    // Player name — large and bold
-    const golfers = Object.entries(playerData[player] || {})
-      .sort((a,b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+    // Gold left border accent on top-3 players
+    const rank = standings.indexOf(player);
+    const accentColor = rank === 0 ? '#b5860d' : rank === 1 ? '#888888' : rank === 2 ? '#8B5E3C' : '#2d5a2d';
+    ctx.fillStyle = accentColor;
+    ctx.beginPath();
+    ctx.roundRect(cx, cy, 4, CARD_H, [10, 0, 0, 10]);
+    ctx.fill();
 
+    // Player name
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 18px Arial, sans-serif';
+    ctx.font = 'bold 20px Arial, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(player, cx + 16, cy + 26);
+    ctx.fillText(player, cx + 18, cy + 34);
 
-    // Unique count — top right, muted
+    // Unique count
     ctx.fillStyle = '#555555';
     ctx.font = '11px Arial, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(golfers.length + ' unique', cx + CARD_W - 14, cy + 26);
+    ctx.fillText(golfers.length + ' unique', cx + CARD_W - 14, cy + 34);
 
-    // Thin divider
-    ctx.strokeStyle = '#2a2a2a';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cx + 16, cy + 36);
-    ctx.lineTo(cx + CARD_W - 16, cy + 36);
-    ctx.stroke();
-
-    // Golfer rows
+    // Golfer rows — no dividers, clean spacing
     const top = golfers.slice(0, topN);
     top.forEach(([golfer, events], gi) => {
       const uses = events.length;
-      const gy = cy + CARD_HEAD + gi * ROW_H;
+      const gy = cy + NAME_H + gi * ROW_H;
       const isMulti = uses >= 2;
-      const isHot = uses >= 7;
+      const isHot   = uses >= 7;
 
-      // Row separator (subtle)
-      if (gi > 0) {
-        ctx.strokeStyle = '#222222';
-        ctx.lineWidth = 0.5;
-        ctx.beginPath();
-        ctx.moveTo(cx + 16, gy);
-        ctx.lineTo(cx + CARD_W - 16, gy);
-        ctx.stroke();
-      }
-
-      // Golfer name
-      ctx.fillStyle = isMulti ? '#ffffff' : '#888888';
-      ctx.font = (isMulti ? '500 ' : '') + '13px Arial, sans-serif';
+      // Golfer name — larger, white for multi, muted for single
+      ctx.fillStyle = isMulti ? '#eeeeee' : '#555555';
+      ctx.font = isMulti ? 'bold 14px Arial, sans-serif' : '400 13px Arial, sans-serif';
       ctx.textAlign = 'left';
       let name = golfer;
-      while (ctx.measureText(name).width > CARD_W - 72 && name.length > 8) {
+      while (ctx.measureText(name).width > CARD_W - 80 && name.length > 6) {
         name = name.slice(0, -2) + '…';
       }
-      ctx.fillText(name, cx + 16, gy + 22);
+      ctx.fillText(name, cx + 18, gy + 24);
 
-      // Use count pill
-      const pillColor = isHot ? '#c8942a' : isMulti ? '#2d6a4f' : '#2a2a2a';
-      const pillTextColor = isHot ? '#fff8e8' : isMulti ? '#c8f0d8' : '#666666';
-      const pillW = 36;
-      const pillH = 20;
-      const px = cx + CARD_W - 16 - pillW;
-      const py = gy + 11;
-      ctx.fillStyle = pillColor;
+      // Pill
+      const pillBg   = isHot ? '#c8942a' : isMulti ? '#2d6a4f' : '#2b2b2b';
+      const pillText = isHot ? '#fff3cd' : isMulti ? '#b7f0cb' : '#555555';
+      const label    = '×' + uses;
+      ctx.font = 'bold 11px Arial, sans-serif';
+      const pillW = Math.max(32, ctx.measureText(label).width + 14);
+      const pillH = 22;
+      const px    = cx + CARD_W - 14 - pillW;
+      const py    = gy + 13;
+      ctx.fillStyle = pillBg;
       ctx.beginPath();
       ctx.roundRect(px, py, pillW, pillH, 4);
       ctx.fill();
-      ctx.fillStyle = pillTextColor;
-      ctx.font = 'bold 11px Arial, sans-serif';
+      ctx.fillStyle = pillText;
       ctx.textAlign = 'center';
-      ctx.fillText('×' + uses, px + pillW / 2, py + 14);
+      ctx.fillText(label, px + pillW / 2, py + 15);
     });
   });
 
-  // Footer
+  // Footer legend
   const fy = H - FOOTER_H + 14;
-  ctx.font = '11px Arial, sans-serif';
-  ctx.textAlign = 'left';
   const legend = [
     { color: '#c8942a', label: '×7+ high loyalty' },
-    { color: '#2d6a4f', label: '×2+ repeat pick' },
-    { color: '#2a2a2a', label: '×1 used once' },
+    { color: '#2d6a4f', label: '×2+ repeat pick'  },
+    { color: '#2b2b2b', label: '×1 used once'      },
   ];
   let lx = PAD;
+  ctx.font = '11px Arial, sans-serif';
   legend.forEach(({ color, label }) => {
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.roundRect(lx, fy, 12, 12, 2);
     ctx.fill();
     ctx.fillStyle = '#666666';
-    ctx.fillText(label, lx + 16, fy + 11);
-    lx += ctx.measureText(label).width + 38;
+    ctx.textAlign = 'left';
+    ctx.fillText(label, lx + 17, fy + 11);
+    lx += ctx.measureText(label).width + 40;
   });
-  ctx.fillStyle = '#333333';
-  ctx.font = '11px Arial, sans-serif';
+  ctx.fillStyle = '#444444';
   ctx.textAlign = 'right';
   ctx.fillText('debocup.com', W - PAD, fy + 11);
 }
