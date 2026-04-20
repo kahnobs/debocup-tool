@@ -2439,7 +2439,7 @@ function renderUsagePlayer(name, activeBtn) {
   document.querySelectorAll('.p-usage-tab').forEach(b => b.classList.toggle('active', b === activeBtn));
   const data = (window._usagePlayerData || {})[name];
   const detail = document.getElementById('usage-player-detail');
-  if (!data) { detail.innerHTML = '<p style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">No data</p>'; return; }
+  if (!data) { detail.innerHTML = '<p style="font-size:13px;color:var(--text2);">No data</p>'; return; }
 
   const golfers = Object.entries(data).sort((a,b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
   const totalUses = golfers.reduce((s,[,e]) => s+e.length, 0);
@@ -2479,7 +2479,7 @@ function buildUsagePlayerGrid(golfers, mode) {
   if (!grid) return;
   grid.innerHTML = '';
   if (!golfers.length) {
-    grid.innerHTML = '<p style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">No repeat picks yet</p>';
+    grid.innerHTML = '<p style="font-size:13px;color:var(--text2);">No repeat picks yet</p>';
     return;
   }
   golfers.forEach(([golfer, events]) => {
