@@ -2529,16 +2529,16 @@ function renderUsageCards() {
   );
 
   const dpr = window.devicePixelRatio || 1;
-  const COLS = 3;
-  const ROWS = Math.ceil(players.length / COLS);
+  const COLS    = 3;
+  const ROWS    = Math.ceil(players.length / COLS);
   const CARD_W  = 340;
-  const NAME_H  = 62;
-  const ROW_H   = 42;
-  const CARD_BOT = 14;
+  const NAME_H  = 58;
+  const ROW_H   = 40;
+  const CARD_BOT = 12;
   const CARD_H  = NAME_H + topN * ROW_H + CARD_BOT;
-  const GAP     = 16;
-  const PAD     = 30;
-  const HEADER_H = 84;
+  const GAP     = 14;
+  const PAD     = 24;
+  const HEADER_H = 90;
   const FOOTER_H = 50;
   const W = COLS * CARD_W + (COLS - 1) * GAP + PAD * 2;
   const H = HEADER_H + ROWS * CARD_H + (ROWS - 1) * GAP + PAD * 2 + FOOTER_H;
@@ -2551,20 +2551,30 @@ function renderUsageCards() {
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
 
-  ctx.fillStyle = '#0a0a0c';
+  // Light page background
+  ctx.fillStyle = '#f7f6f2';
   ctx.fillRect(0, 0, W, H);
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 28px Arial, sans-serif';
+  // Header — dark text on light bg
+  ctx.fillStyle = '#1a1a18';
+  ctx.font = '12px Arial, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('MOST USED GOLFERS', PAD, PAD + 30);
+  ctx.fillText('DEBO CUP · 2026 SEASON', PAD, PAD + 14);
 
-  const totalEvents = [...new Set(Object.values(playerData).flatMap(d=>Object.values(d).flat()))].length;
-  const totalUnique = [...new Set(Object.values(playerData).flatMap(d=>Object.keys(d)))].length;
-  ctx.fillStyle = '#888888';
-  ctx.font = '13px Arial, sans-serif';
-  ctx.fillText(totalUnique + ' golfers used across ' + totalEvents + ' events', PAD, PAD + 56);
+  ctx.fillStyle = '#1a1a18';
+  ctx.font = 'bold 32px Arial, sans-serif';
+  ctx.fillText('Golfer usage through week ' +
+    [...new Set(Object.values(playerData).flatMap(d=>Object.values(d).flat()))].length, PAD, PAD + 54);
 
+  // Thin separator under header
+  ctx.strokeStyle = '#d0cdc4';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD, HEADER_H - 10);
+  ctx.lineTo(W - PAD, HEADER_H - 10);
+  ctx.stroke();
+
+  // Cards
   players.forEach((player, pi) => {
     const col = pi % COLS;
     const row = Math.floor(pi / COLS);
@@ -2574,33 +2584,39 @@ function renderUsageCards() {
     const golfers = Object.entries(playerData[player] || {})
       .sort((a,b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
 
-    ctx.fillStyle = '#111115';
+    // Card — white with subtle border
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.roundRect(cx, cy, CARD_W, CARD_H, 10);
+    ctx.roundRect(cx, cy, CARD_W, CARD_H, 8);
     ctx.fill();
-    ctx.strokeStyle = '#222228';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#e0ddd6';
+    ctx.lineWidth = 0.5;
     ctx.beginPath();
-    ctx.roundRect(cx, cy, CARD_W, CARD_H, 10);
+    ctx.roundRect(cx, cy, CARD_W, CARD_H, 8);
     ctx.stroke();
 
-    ctx.fillStyle = '#e8e8f0';
-    ctx.font = 'bold 20px Arial, sans-serif';
+    // Player name — large, dark, bold
+    ctx.fillStyle = '#1a1a18';
+    ctx.font = 'bold 22px Arial, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(player, cx + 18, cy + 34);
+    ctx.fillText(player, cx + 16, cy + 30);
 
-    ctx.fillStyle = '#6b6b80';
-    ctx.font = '12px Arial, sans-serif';
+    // Unique count — colored highlight
+    ctx.fillStyle = '#9e9d97';
+    ctx.font = '600 13px Arial, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(golfers.length + ' unique', cx + CARD_W - 16, cy + 34);
+    const uStr = golfers.length + ' unique';
+    ctx.fillText(uStr, cx + CARD_W - 14, cy + 30);
 
-    ctx.strokeStyle = '#1e1e24';
+    // Subtle divider
+    ctx.strokeStyle = '#eeebe4';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(cx + 18, cy + 46);
-    ctx.lineTo(cx + CARD_W - 18, cy + 46);
+    ctx.moveTo(cx + 16, cy + 42);
+    ctx.lineTo(cx + CARD_W - 16, cy + 42);
     ctx.stroke();
 
+    // Golfer rows
     const top = golfers.slice(0, topN);
     top.forEach(([golfer, events], gi) => {
       const uses = events.length;
@@ -2608,54 +2624,64 @@ function renderUsageCards() {
       const isMulti = uses >= 2;
       const isHot   = uses >= 7;
 
-      ctx.fillStyle = isMulti ? '#e0e0ec' : '#46465a';
-      ctx.font = isMulti ? 'bold 14px Arial, sans-serif' : '13px Arial, sans-serif';
+      // Golfer name
+      ctx.fillStyle = isMulti ? '#1a1a18' : '#b0ada6';
+      ctx.font = isMulti ? '500 15px Arial, sans-serif' : '15px Arial, sans-serif';
       ctx.textAlign = 'left';
       let name = golfer;
+      ctx.font = isMulti ? '500 15px Arial, sans-serif' : '15px Arial, sans-serif';
       while (ctx.measureText(name).width > CARD_W - 90 && name.length > 6) {
-        name = name.slice(0, -2) + '\u2026';
+        name = name.slice(0, -2) + '…';
       }
-      ctx.fillText(name, cx + 18, gy + 26);
+      ctx.fillText(name, cx + 16, gy + 25);
 
-      const pillBg   = isHot ? '#c8942a' : isMulti ? '#2d6a4f' : '#1e1e28';
-      const pillText = isHot ? '#fff8e8' : isMulti ? '#c8f0d8' : '#46465a';
-      const label    = '\u00d7' + uses;
+      // Pill badge — matches reference style
+      const pillBg   = isHot ? '#c8942a' : isMulti ? '#2563a8' : '#f0ede6';
+      const pillText = isHot ? '#fff8e8' : isMulti ? '#ffffff'  : '#b0ada6';
+      const label    = '×' + uses;
       ctx.font = 'bold 12px Arial, sans-serif';
-      const pillW = Math.max(38, ctx.measureText(label).width + 18);
-      const pillH  = 24;
-      const px     = cx + CARD_W - 18 - pillW;
-      const py     = gy + 14;
+      const pillW = Math.max(36, ctx.measureText(label).width + 16);
+      const pillH  = 22;
+      const px     = cx + CARD_W - 14 - pillW;
+      const py     = gy + 13;
       ctx.fillStyle = pillBg;
       ctx.beginPath();
-      ctx.roundRect(px, py, pillW, pillH, 6);
+      ctx.roundRect(px, py, pillW, pillH, 11);
       ctx.fill();
       ctx.fillStyle = pillText;
       ctx.textAlign = 'center';
-      ctx.fillText(label, px + pillW / 2, py + 16.5);
+      ctx.fillText(label, px + pillW / 2, py + 15);
     });
   });
 
+  // Footer
   const fy = H - FOOTER_H + 16;
   const legend = [
-    { color: '#c8942a', label: '\u00d77+ high loyalty' },
-    { color: '#2d6a4f', label: '\u00d72+ repeat pick'  },
-    { color: '#1e1e28', label: '\u00d71 used once'     },
+    { color: '#c8942a', textColor: '#fff8e8', label: '×7+  high loyalty' },
+    { color: '#2563a8', textColor: '#ffffff',  label: '×2+  repeat pick'  },
+    { color: '#f0ede6', textColor: '#b0ada6', label: '×1  used once'     },
   ];
   let lx = PAD;
-  ctx.font = '11px Arial, sans-serif';
-  legend.forEach(({ color, label }) => {
+  ctx.font = '12px Arial, sans-serif';
+  legend.forEach(({ color, textColor, label }) => {
+    const pw = 42, ph = 20;
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.roundRect(lx, fy, 14, 14, 3);
+    ctx.roundRect(lx, fy - 2, pw, ph, 10);
     ctx.fill();
-    ctx.fillStyle = '#55556a';
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 10px Arial, sans-serif';
+    ctx.fillText(label.split('  ')[0], lx + pw / 2, fy + 12);
+    ctx.fillStyle = '#6b6a64';
+    ctx.font = '12px Arial, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(label, lx + 20, fy + 11);
-    lx += ctx.measureText(label).width + 44;
+    ctx.fillText(label.split('  ')[1], lx + pw + 8, fy + 12);
+    lx += pw + ctx.measureText(label.split('  ')[1]).width + 28;
   });
-  ctx.fillStyle = '#33334a';
+  ctx.fillStyle = '#c0bdb6';
   ctx.textAlign = 'right';
-  ctx.fillText('debocup.com', W - PAD, fy + 11);
+  ctx.fillText('debocup.com', W - PAD, fy + 12);
 }
 function downloadUsageCards() {
   const canvas = document.getElementById('usage-cards-canvas');
