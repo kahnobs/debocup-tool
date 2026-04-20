@@ -492,6 +492,7 @@
       <div class="inner-tabs" id="usage-inner-tabs">
         <button class="inner-tab active" onclick="showUsageView('league',this)">League leaderboard</button>
         <button class="inner-tab" onclick="showUsageView('player',this)">Player breakdown</button>
+        <button class="inner-tab" onclick="showUsageView('cards',this)">Player cards</button>
       </div>
 
       <!-- LEAGUE VIEW -->
@@ -513,6 +514,23 @@
       <div id="usage-player" style="display:none;">
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;" id="usage-player-tabs"></div>
         <div id="usage-player-detail"><p style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">Select a player above</p></div>
+      </div>
+
+      <!-- PLAYER CARDS VIEW -->
+      <div id="usage-cards" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+          <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:var(--text2);">Top picks per player — sorted by current standings</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:var(--text2);">Show top</label>
+            <select id="cards-top-n" onchange="renderUsageCards()" style="font-size:12px;padding:4px 8px;width:auto;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);">
+              <option value="3">3 golfers</option>
+              <option value="4">4 golfers</option>
+              <option value="5" selected>5 golfers</option>
+            </select>
+            <button onclick="downloadUsageCards()" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;font-weight:600;padding:5px 14px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text2);cursor:pointer;">Download image ↓</button>
+          </div>
+        </div>
+        <canvas id="usage-cards-canvas" style="display:block;max-width:100%;border-radius:var(--radius-lg);"></canvas>
       </div>
 
     </div>
@@ -2312,7 +2330,9 @@ function buildUsageData() {
 function showUsageView(view, btn) {
   document.getElementById('usage-league').style.display = view === 'league' ? '' : 'none';
   document.getElementById('usage-player').style.display = view === 'player' ? '' : 'none';
+  document.getElementById('usage-cards').style.display = view === 'cards' ? '' : 'none';
   document.querySelectorAll('#usage-inner-tabs .inner-tab').forEach(b => b.classList.toggle('active', b === btn));
+  if (view === 'cards') renderUsageCards();
 }
 
 function setUsageSort(mode, btn) {
@@ -2496,6 +2516,171 @@ function buildUsagePlayerGrid(golfers, mode) {
     `;
     grid.appendChild(card);
   });
+}
+
+
+// ── Usage Player Cards ────────────────────────────────────────────────────
+
+function renderUsageCards() {
+  const canvas = document.getElementById('usage-cards-canvas');
+  if (!canvas) return;
+  const playerData = window._usagePlayerData || {};
+  if (!Object.keys(playerData).length) { renderUsage(); }
+
+  const topN = parseInt(document.getElementById('cards-top-n').value) || 5;
+
+  // Sort players by current standings
+  const standings = Object.entries(CURRENT_STANDINGS).sort((a,b) => b[1].pts - a[1].pts).map(e => e[0]);
+  const players = standings.filter(p => playerData[p]).concat(
+    Object.keys(playerData).filter(p => !standings.includes(p))
+  );
+
+  const dpr = window.devicePixelRatio || 1;
+  const COLS = 4;
+  const ROWS = Math.ceil(players.length / COLS);
+  const CARD_W = 280;
+  const CARD_H = 60 + topN * 32 + 20;
+  const GAP = 12;
+  const PAD = 24;
+  const HEADER_H = 64;
+  const FOOTER_H = 48;
+  const W = COLS * CARD_W + (COLS - 1) * GAP + PAD * 2;
+  const H = HEADER_H + ROWS * CARD_H + (ROWS - 1) * GAP + PAD * 2 + FOOTER_H;
+
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // Background
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(0, 0, W, H);
+
+  // Header
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 22px Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('DEBO CUP · 2026 SEASON', PAD, PAD + 22);
+  ctx.fillStyle = '#aaaaaa';
+  ctx.font = '14px Arial, sans-serif';
+  ctx.fillText('Top ' + topN + ' most-used golfers per player', PAD, PAD + 44);
+
+  // Cards
+  players.forEach((player, pi) => {
+    const col = pi % COLS;
+    const row = Math.floor(pi / COLS);
+    const cx = PAD + col * (CARD_W + GAP);
+    const cy = HEADER_H + PAD + row * (CARD_H + GAP);
+
+    // Card background
+    ctx.fillStyle = '#1e1e1e';
+    ctx.beginPath();
+    ctx.roundRect(cx, cy, CARD_W, CARD_H, 8);
+    ctx.fill();
+
+    // Player name
+    const rank = standings.indexOf(player) + 1;
+    const rankStr = rank > 0 ? rank + '. ' : '';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 15px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(rankStr + player, cx + 14, cy + 22);
+
+    // Unique count
+    const golfers = Object.entries(playerData[player] || {})
+      .sort((a,b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+    ctx.fillStyle = '#888888';
+    ctx.font = '11px Arial, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(golfers.length + ' unique', cx + CARD_W - 14, cy + 22);
+
+    // Divider
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + 14, cy + 30);
+    ctx.lineTo(cx + CARD_W - 14, cy + 30);
+    ctx.stroke();
+
+    // Top N golfers
+    const top = golfers.slice(0, topN);
+    const maxUses = top[0] ? top[0][1].length : 1;
+
+    top.forEach(([golfer, events], gi) => {
+      const uses = events.length;
+      const gy = cy + 44 + gi * 32;
+      const barMaxW = CARD_W - 28;
+      const barW = Math.max(4, (uses / maxUses) * barMaxW);
+
+      // Bar background
+      ctx.fillStyle = '#2a2a2a';
+      ctx.beginPath();
+      ctx.roundRect(cx + 14, gy, barMaxW, 22, 3);
+      ctx.fill();
+
+      // Bar fill — gold for ×7+, green for ×2+, grey for ×1
+      ctx.fillStyle = uses >= 7 ? '#c8942a' : uses >= 2 ? '#2d6a4f' : '#444444';
+      ctx.beginPath();
+      ctx.roundRect(cx + 14, gy, barW, 22, 3);
+      ctx.fill();
+
+      // Golfer name
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '12px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      // Truncate long names
+      let name = golfer;
+      ctx.font = '12px Arial, sans-serif';
+      while (ctx.measureText(name).width > barMaxW - 40 && name.length > 10) {
+        name = name.slice(0, -2) + '…';
+      }
+      ctx.fillText(name, cx + 20, gy + 15);
+
+      // Use count badge
+      ctx.fillStyle = uses >= 7 ? '#fff3cd' : uses >= 2 ? '#d4edda' : '#cccccc';
+      ctx.font = 'bold 11px Arial, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText('×' + uses, cx + CARD_W - 18, gy + 15);
+    });
+  });
+
+  // Footer
+  const fy = H - FOOTER_H + 16;
+  ctx.textAlign = 'left';
+  ctx.font = '11px Arial, sans-serif';
+
+  // Legend
+  const legend = [
+    { color: '#c8942a', label: '×7+ high loyalty' },
+    { color: '#2d6a4f', label: '×2+ repeat pick' },
+    { color: '#444444', label: '×1 used once' },
+  ];
+  let lx = PAD;
+  legend.forEach(({ color, label }) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(lx, fy, 12, 12);
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText(label, lx + 16, fy + 11);
+    lx += ctx.measureText(label).width + 36;
+  });
+
+  // debocup.com
+  ctx.fillStyle = '#555555';
+  ctx.font = '11px Arial, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('debocup.com', W - PAD, fy + 11);
+}
+
+function downloadUsageCards() {
+  const canvas = document.getElementById('usage-cards-canvas');
+  if (!canvas) return;
+  const link = document.createElement('a');
+  link.download = 'debo-cup-player-usage.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
 }
 
 </script>
