@@ -121,6 +121,46 @@
   .trend-pill:hover { border-color:var(--text); color:var(--text); }
   .trend-pill.active { background:var(--text); color:var(--bg); border-color:var(--text); }
 
+  .usage-sort-btn { font-family: 'Helvetica Neue',Arial,sans-serif; font-size:11px; font-weight:600; padding:3px 10px; border:0.5px solid var(--border2); border-radius:20px; background:var(--bg); color:var(--text2); cursor:pointer; transition:all 0.12s; letter-spacing:0.04em; text-transform:uppercase; }
+  .usage-sort-btn:hover { border-color:var(--text); color:var(--text); }
+  .usage-sort-btn.active { background:var(--text); color:var(--bg); border-color:var(--text); }
+  .usage-row { display:grid; grid-template-columns:32px 1fr 90px 160px; gap:10px; align-items:center; padding:7px 10px; border-radius:6px; background:var(--bg); border:0.5px solid transparent; cursor:pointer; transition:border-color 0.12s; margin-bottom:2px; }
+  .usage-row:hover { border-color:var(--border); }
+  .usage-row.top1 { border-color:#b5860d !important; }
+  .usage-row.top2 { border-color:#888 !important; }
+  .usage-row.top3 { border-color:#cd7f32 !important; }
+  .usage-row.expanded { border-color:var(--text) !important; border-radius:6px 6px 0 0; }
+  .usage-expand { display:none; background:var(--bg2); border:0.5px solid var(--text); border-top:none; border-radius:0 0 6px 6px; padding:8px 10px 10px 42px; margin-bottom:4px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--text2); line-height:2; }
+  .usage-expand.open { display:block; }
+  .usage-rank { font-size:13px; font-weight:700; color:var(--text2); text-align:center; font-family:'Helvetica Neue',Arial,sans-serif; }
+  .usage-row.top1 .usage-rank { color:#b5860d; }
+  .usage-row.top2 .usage-rank { color:#666; }
+  .usage-row.top3 .usage-rank { color:#cd7f32; }
+  .usage-golfer-name { font-size:13px; font-weight:500; color:var(--text); }
+  .usage-pips { display:flex; gap:3px; flex-wrap:wrap; margin-top:3px; }
+  .usage-pip { display:inline-flex; align-items:center; font-family:'Helvetica Neue',Arial,sans-serif; font-size:9px; border-radius:3px; overflow:hidden; border:0.5px solid var(--border); }
+  .usage-pip-name { padding:1px 5px; background:var(--bg2); color:var(--text2); }
+  .usage-pip-count { padding:1px 5px; background:var(--border); color:var(--text); font-weight:600; }
+  .usage-pip.multi .usage-pip-name { background:#eaf5ee; color:#2d6a4f; border-right:0.5px solid var(--border); }
+  .usage-pip.multi .usage-pip-count { background:#eaf5ee; color:#2d6a4f; }
+  .usage-stat { font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--text); text-align:right; line-height:1.5; }
+  .usage-stat span { display:block; font-size:9px; color:var(--text2); }
+  .usage-bar-wrap { height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+  .usage-bar { height:100%; border-radius:2px; background:var(--text2); transition:width 0.4s; }
+  .usage-row.top1 .usage-bar { background:#b5860d; }
+  .p-usage-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:7px; margin-top:4px; }
+  .p-usage-card { background:var(--bg); border:0.5px solid var(--border); border-radius:6px; padding:10px 12px; }
+  .p-usage-card.multi { border-left:2px solid #2d6a4f; }
+  .p-usage-golfer { font-size:13px; font-weight:500; color:var(--text); margin-bottom:4px; }
+  .p-usage-count { display:flex; align-items:baseline; gap:5px; margin-bottom:5px; }
+  .p-usage-num { font-size:20px; font-weight:700; color:var(--text2); font-family:'Helvetica Neue',Arial,sans-serif; }
+  .p-usage-card.multi .p-usage-num { color:#2d6a4f; }
+  .p-usage-label { font-size:10px; color:var(--text2); text-transform:uppercase; letter-spacing:0.06em; font-family:'Helvetica Neue',Arial,sans-serif; }
+  .p-usage-events { font-size:10px; color:var(--text2); font-family:'Helvetica Neue',Arial,sans-serif; line-height:1.5; }
+  .p-usage-tab { padding:5px 12px; background:var(--bg); border:0.5px solid var(--border2); color:var(--text2); font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; font-weight:600; cursor:pointer; border-radius:3px; transition:all 0.12s; letter-spacing:0.04em; text-transform:uppercase; }
+  .p-usage-tab:hover { border-color:var(--text); color:var(--text); }
+  .p-usage-tab.active { background:var(--text); color:var(--bg); border-color:var(--text); }
+
 </style>
 </head>
 <body>
@@ -145,6 +185,7 @@
     <button class="top-tab" onclick="showTopTab('history',this)">Recent results</button>
     <button class="top-tab" onclick="showTopTab('live-standings',this)">Current standings</button>
     <button class="top-tab" onclick="showTopTab('trend',this)">Standings trend</button>
+    <button class="top-tab" onclick="showTopTab('usage',this)">Golfer usage</button>
   </div>
 
   <!-- ENTER RESULTS TAB -->
@@ -440,6 +481,40 @@
       <div id="trend-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;"></div>
       <p style="font-size:11px;color:var(--text3);font-family:'Helvetica Neue',Arial,sans-serif;margin-top:12px;text-align:center;letter-spacing:0.02em;">Players' season-long standing after each event</p>
       <p id="trend-empty" style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;display:none;margin-top:1rem;">No results data available — check that the sheet is publicly readable.</p>
+    </div>
+  </div>
+
+  <!-- GOLFER USAGE TAB -->
+  <div id="top-usage" style="display:none;">
+    <div class="card" style="padding:1rem;">
+
+      <!-- Section switcher -->
+      <div class="inner-tabs" id="usage-inner-tabs">
+        <button class="inner-tab active" onclick="showUsageView('league',this)">League leaderboard</button>
+        <button class="inner-tab" onclick="showUsageView('player',this)">Player breakdown</button>
+      </div>
+
+      <!-- LEAGUE VIEW -->
+      <div id="usage-league">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+          <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:var(--text2);" id="usage-league-sub"></div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">Sort:</span>
+            <button class="usage-sort-btn active" onclick="setUsageSort('owners',this)">Owners</button>
+            <button class="usage-sort-btn" onclick="setUsageSort('uses',this)">Total uses</button>
+            <button class="usage-sort-btn" onclick="setUsageSort('alpha',this)">A–Z</button>
+          </div>
+        </div>
+        <div id="usage-league-rows"></div>
+        <button class="add-btn" id="usage-show-more" onclick="toggleUsageShowAll()" style="margin-top:8px;display:none;">Show all</button>
+      </div>
+
+      <!-- PLAYER VIEW -->
+      <div id="usage-player" style="display:none;">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;" id="usage-player-tabs"></div>
+        <div id="usage-player-detail"><p style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">Select a player above</p></div>
+      </div>
+
     </div>
   </div>
 
@@ -1508,12 +1583,13 @@ function buildCutSweatFromLineups() {
 // Auto-build when switching to Cut Sweat tab
 const origShowTopTab = showTopTab;
 function showTopTab(name, btn) {
-  ['enter','preview','ownership','cutsweat','history','live-standings','trend'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
+  ['enter','preview','ownership','cutsweat','history','live-standings','trend','usage'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
   document.querySelectorAll('.top-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if (name === 'cutsweat') buildCutSweatFromLineups();
   if (name === 'ownership') syncOwnershipFromPreview();
   if (name === 'trend') { populateTrendPlayerSelect(); renderTrend(); }
+  if (name === 'usage') renderUsage();
 }
 
 function parseScore(s) {
@@ -2195,6 +2271,226 @@ function setTrendCustom(input) {
   document.querySelectorAll('.trend-pill').forEach(b => b.classList.remove('active'));
   renderTrend();
 }
+
+// ── Golfer Usage ──────────────────────────────────────────────────────────
+
+let _usageSortMode = 'owners';
+let _usageShowAll  = false;
+let _usageActivePlayer = null;
+const USAGE_INITIAL = 30;
+
+function buildUsageData() {
+  const season = ALL_RESULTS.filter(r => (r['Season']||'').includes('2026') && r['Player'] && r['Lineup']);
+  const leagueData  = {}; // golfer -> { count, owners: {player: [events]} }
+  const playerData  = {}; // player -> { golfer: [events] }
+
+  season.forEach(r => {
+    const player = r['Player'];
+    const event  = r['Event'] || '';
+    const lineup = (r['Lineup'] || '').toString();
+    if (!lineup || lineup === 'nan') return;
+    const golfers = lineup.split(',').map(g => g.trim()).filter(Boolean);
+    if (!playerData[player]) playerData[player] = {};
+    golfers.forEach(g => {
+      if (!playerData[player][g]) playerData[player][g] = [];
+      if (!playerData[player][g].includes(event)) playerData[player][g].push(event);
+      if (!leagueData[g]) leagueData[g] = { count: 0, owners: {} };
+      if (!leagueData[g].owners[player]) { leagueData[g].owners[player] = []; leagueData[g].count++; }
+      if (!leagueData[g].owners[player].includes(event)) leagueData[g].owners[player].push(event);
+    });
+  });
+  return { leagueData, playerData };
+}
+
+function showUsageView(view, btn) {
+  document.getElementById('usage-league').style.display = view === 'league' ? '' : 'none';
+  document.getElementById('usage-player').style.display = view === 'player' ? '' : 'none';
+  document.querySelectorAll('#usage-inner-tabs .inner-tab').forEach(b => b.classList.toggle('active', b === btn));
+}
+
+function setUsageSort(mode, btn) {
+  _usageSortMode = mode;
+  document.querySelectorAll('.usage-sort-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderUsageLeague();
+}
+
+function toggleUsageShowAll() {
+  _usageShowAll = !_usageShowAll;
+  renderUsageLeague();
+}
+
+function renderUsage() {
+  const { leagueData, playerData } = buildUsageData();
+  window._usageLeagueData = leagueData;
+  window._usagePlayerData = playerData;
+
+  // Build player tabs
+  const nav = document.getElementById('usage-player-tabs');
+  nav.innerHTML = '';
+  const allPlayers = Object.keys(playerData).sort((a,b) => {
+    // Sort by current standings order
+    const standings = Object.entries(window.CURRENT_STANDINGS||{}).sort((x,y)=>y[1].pts-x[1].pts).map(e=>e[0]);
+    const ai = standings.indexOf(a), bi = standings.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+  allPlayers.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'p-usage-tab' + (p === _usageActivePlayer ? ' active' : '');
+    btn.textContent = p;
+    btn.onclick = () => { _usageActivePlayer = p; renderUsagePlayer(p, btn); };
+    nav.appendChild(btn);
+  });
+
+  renderUsageLeague();
+}
+
+function getSortedLeague() {
+  const entries = Object.entries(window._usageLeagueData || {});
+  if (_usageSortMode === 'owners') {
+    entries.sort((a,b) => b[1].count - a[1].count || Object.values(b[1].owners).reduce((s,e)=>s+e.length,0) - Object.values(a[1].owners).reduce((s,e)=>s+e.length,0));
+  } else if (_usageSortMode === 'uses') {
+    entries.sort((a,b) => {
+      const ua = Object.values(a[1].owners).reduce((s,e)=>s+e.length,0);
+      const ub = Object.values(b[1].owners).reduce((s,e)=>s+e.length,0);
+      return ub - ua || b[1].count - a[1].count;
+    });
+  } else {
+    entries.sort((a,b) => a[0].localeCompare(b[0]));
+  }
+  return entries;
+}
+
+function renderUsageLeague() {
+  const sorted = getSortedLeague();
+  const allPlayers = Object.keys(window.CURRENT_STANDINGS || {});
+  const totalPlayers = allPlayers.length || 12;
+  const maxVal = sorted[0] ? (_usageSortMode === 'uses'
+    ? Object.values(sorted[0][1].owners).reduce((s,e)=>s+e.length,0)
+    : sorted[0][1].count) : 1;
+
+  document.getElementById('usage-league-sub').textContent =
+    `${sorted.length} unique golfers used · ${Object.keys(buildUsageData().playerData).length} players`;
+
+  const toShow = _usageShowAll ? sorted : sorted.slice(0, USAGE_INITIAL);
+  const container = document.getElementById('usage-league-rows');
+  container.innerHTML = '';
+
+  toShow.forEach(([golfer, data], i) => {
+    const rank = i + 1;
+    const owners = Object.entries(data.owners).sort((a,b) => b[1].length - a[1].length);
+    const totalUses = owners.reduce((s,[,e]) => s+e.length, 0);
+    const barVal = _usageSortMode === 'uses' ? totalUses / maxVal : data.count / maxVal;
+    const rankClass = rank===1?' top1':rank===2?' top2':rank===3?' top3':'';
+
+    const pips = owners.map(([owner, evts]) => {
+      const multi = evts.length > 1;
+      return `<span class="usage-pip${multi?' multi':''}"><span class="usage-pip-name">${owner}</span><span class="usage-pip-count">×${evts.length}</span></span>`;
+    }).join('');
+
+    const row = document.createElement('div');
+    row.className = 'usage-row' + rankClass;
+    row.innerHTML = `
+      <div class="usage-rank">${rank}</div>
+      <div>
+        <div class="usage-golfer-name">${golfer}</div>
+        <div class="usage-pips">${pips}</div>
+      </div>
+      <div class="usage-stat">${data.count}/${totalPlayers} <span>owners</span>${totalUses} <span>total uses</span></div>
+      <div class="usage-bar-wrap"><div class="usage-bar" style="width:${(barVal*100).toFixed(1)}%"></div></div>
+    `;
+    row.onclick = () => toggleUsageExpand(row, golfer, data, i);
+    container.appendChild(row);
+
+    const exp = document.createElement('div');
+    exp.className = 'usage-expand';
+    exp.id = 'uexp-' + i;
+    container.appendChild(exp);
+  });
+
+  const btn = document.getElementById('usage-show-more');
+  btn.style.display = '';
+  btn.textContent = _usageShowAll ? 'Show less ↑' : `Show all ${sorted.length} golfers ↓`;
+  if (!_usageShowAll && sorted.length <= USAGE_INITIAL) btn.style.display = 'none';
+}
+
+function toggleUsageExpand(row, golfer, data, idx) {
+  const exp = document.getElementById('uexp-' + idx);
+  const isOpen = exp.classList.contains('open');
+  document.querySelectorAll('.usage-expand.open').forEach(e => e.classList.remove('open'));
+  document.querySelectorAll('.usage-row.expanded').forEach(r => r.classList.remove('expanded'));
+  if (!isOpen) {
+    row.classList.add('expanded');
+    exp.classList.add('open');
+    const owners = Object.entries(data.owners).sort((a,b) => b[1].length - a[1].length);
+    exp.innerHTML = owners.map(([owner, evts]) =>
+      `<span style="display:inline-block;margin-right:18px;"><strong style="color:var(--text)">${owner}</strong> (×${evts.length}): <span style="color:var(--text2)">${evts.join(', ')}</span></span>`
+    ).join('');
+  }
+}
+
+function renderUsagePlayer(name, activeBtn) {
+  document.querySelectorAll('.p-usage-tab').forEach(b => b.classList.toggle('active', b === activeBtn));
+  const data = (window._usagePlayerData || {})[name];
+  const detail = document.getElementById('usage-player-detail');
+  if (!data) { detail.innerHTML = '<p style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">No data</p>'; return; }
+
+  const golfers = Object.entries(data).sort((a,b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  const totalUses = golfers.reduce((s,[,e]) => s+e.length, 0);
+  const repeats = golfers.filter(([,e]) => e.length > 1).length;
+  const events = [...new Set(golfers.flatMap(([,e]) => e))];
+
+  detail.innerHTML = `
+    <div style="display:flex;align-items:baseline;gap:16px;margin-bottom:14px;flex-wrap:wrap;">
+      <span style="font-size:18px;font-weight:700;font-family:'Helvetica Neue',Arial,sans-serif;color:var(--text);">${name}</span>
+      <span style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">
+        <strong style="color:var(--text)">${golfers.length}</strong> unique golfers ·
+        <strong style="color:var(--text)">${totalUses}</strong> total picks ·
+        <strong style="color:var(--text)">${events.length}</strong> events ·
+        <strong style="color:var(--text)">${repeats}</strong> repeat picks
+      </span>
+      <div style="margin-left:auto;display:flex;gap:6px;">
+        <button class="p-usage-tab active" id="puf-all" onclick="filterUsagePlayer('all','${name}',this)">All (${golfers.length})</button>
+        <button class="p-usage-tab" id="puf-rep" onclick="filterUsagePlayer('repeat','${name}',this)">Repeats (${repeats})</button>
+      </div>
+    </div>
+    <div class="p-usage-grid" id="p-usage-grid"></div>
+  `;
+  buildUsagePlayerGrid(golfers, 'all');
+}
+
+function filterUsagePlayer(mode, name, btn) {
+  document.querySelectorAll('#puf-all,#puf-rep').forEach(b => b.classList.toggle('active', b === btn));
+  const data = (window._usagePlayerData || {})[name];
+  if (!data) return;
+  const golfers = Object.entries(data).sort((a,b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  const toShow = mode === 'repeat' ? golfers.filter(([,e]) => e.length > 1) : golfers;
+  buildUsagePlayerGrid(toShow, mode);
+}
+
+function buildUsagePlayerGrid(golfers, mode) {
+  const grid = document.getElementById('p-usage-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  if (!golfers.length) {
+    grid.innerHTML = '<p style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">No repeat picks yet</p>';
+    return;
+  }
+  golfers.forEach(([golfer, events]) => {
+    const uses = events.length;
+    const card = document.createElement('div');
+    card.className = 'p-usage-card' + (uses > 1 ? ' multi' : '');
+    card.innerHTML = `
+      <div class="p-usage-golfer">${golfer}</div>
+      <div class="p-usage-count">
+        <div class="p-usage-num">${uses}</div>
+        <div class="p-usage-label">use${uses !== 1 ? 's' : ''}</div>
+      </div>
+      <div class="p-usage-events">${events.join(', ')}</div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
 </script>
 </body>
 </html>
