@@ -572,18 +572,25 @@ function parseCSVText(text) {
 }
 
 async function fetchCSV(url) {
-  // gviz endpoint fetches directly from browser — no CORS proxy needed
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const text = await res.text();
-  if (!text.includes(',')) throw new Error('Unexpected response');
-  return text;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    if (!text.includes(',')) throw new Error('Unexpected response');
+    return text;
+  } catch(e) {
+    clearTimeout(timer);
+    throw e;
+  }
 }
 
 async function loadAll() {
   setStatus('loading', 'Loading live data from Google Sheets...');
-  // Load fallback immediately so tool is usable while network loads
-  if (!PLAYERS.length) { useFallback(); }
+  // Always load fallback first so UI is immediately interactive
+  useFallback();
   document.getElementById('calc-btn').disabled = false;
   let standingsOk = false, resultsOk = false;
 
@@ -617,12 +624,12 @@ async function loadAll() {
   } catch(e) { useFallback(); }
 
   try {
-    const text = await fetchCSV(CSV_RESULTS);
-    ALL_RESULTS = parseCSVText(text);
-    try {
-      const tieText = await fetchCSV(CSV_TIES);
-      ALL_TIES = parseCSVText(tieText);
-    } catch(e) { ALL_TIES = []; }
+    const [resultsText, tiesText] = await Promise.all([
+      fetchCSV(CSV_RESULTS),
+      fetchCSV(CSV_TIES).catch(() => null)
+    ]);
+    ALL_RESULTS = parseCSVText(resultsText);
+    ALL_TIES = tiesText ? parseCSVText(tiesText) : [];
     renderHistory();
     resultsOk = true;
   } catch(e) {
@@ -633,12 +640,12 @@ async function loadAll() {
   if (standingsOk && resultsOk)
     setStatus('ok', `Live data loaded — ${PLAYERS.length} players · ${new Date().toLocaleTimeString()}`);
   else if (standingsOk)
-    setStatus('ok', `Standings loaded (results feed unavailable) · ${new Date().toLocaleTimeString()}`);
+    setStatus('ok', `Standings loaded (results unavailable) · ${new Date().toLocaleTimeString()}`);
   else
-    setStatus('err', 'Could not reach Google Sheets — using fallback Week 10 standings');
+    setStatus('err', 'Could not reach Google Sheets — using fallback standings. Check sheet is public.');
 
   document.getElementById('calc-btn').disabled = false;
-  loadSchedule();
+  setTimeout(loadSchedule, 100);
 }
 
 function useFallback() {
