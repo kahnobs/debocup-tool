@@ -518,9 +518,9 @@
           <div style="display:flex;align-items:center;gap:8px;">
             <label style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:var(--text2);">Show top</label>
             <select id="cards-top-n" onchange="renderUsageCards()" style="font-size:12px;padding:4px 8px;width:auto;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);">
-              <option value="3">3 golfers</option>
+              <option value="3" selected>3 golfers</option>
               <option value="4">4 golfers</option>
-              <option value="5" selected>5 golfers</option>
+              <option value="5">5 golfers</option>
             </select>
             <button onclick="downloadUsageCards()" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;font-weight:600;padding:5px 14px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text2);cursor:pointer;">Download image ↓</button>
           </div>
@@ -2523,8 +2523,10 @@ function renderUsageCards() {
   if (!Object.keys(playerData).length) { renderUsage(); }
 
   const topN = parseInt(document.getElementById('cards-top-n').value) || 5;
+  const players = Object.entries(playerData)
+    .sort((a,b) => Object.keys(b[1]).length - Object.keys(a[1]).length)
+    .map(e => e[0]);
   const standings = Object.entries(CURRENT_STANDINGS).sort((a,b)=>b[1].pts-a[1].pts).map(e=>e[0]);
-  const players = standings.filter(p=>playerData[p]).concat(Object.keys(playerData).filter(p=>!standings.includes(p)));
 
   const dpr   = window.devicePixelRatio || 1;
   const COLS  = 3;
