@@ -2557,15 +2557,14 @@ function renderUsageCards() {
   ctx.fillRect(0, 0, W, H);
 
   // ── Header ──
-  ctx.fillStyle = '#888890';
-  ctx.font = '500 11px Arial, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('DEBO CUP · 2026 SEASON', OUTER, OUTER + 14);
-
   const evtCount = [...new Set(Object.values(playerData).flatMap(d=>Object.values(d).flat()))].length;
   ctx.fillStyle = '#f0f0f5';
-  ctx.font = 'bold 28px Arial, sans-serif';
-  ctx.fillText('Golfer usage through week ' + evtCount, OUTER, OUTER + 52);
+  ctx.font = 'bold 30px Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('DEBO Cup · 2026 Season', OUTER, OUTER + 34);
+  ctx.fillStyle = '#888890';
+  ctx.font = '14px Arial, sans-serif';
+  ctx.fillText('Golfer usage through week ' + evtCount, OUTER, OUTER + 58);
 
   // Thin separator
   ctx.strokeStyle = '#333338';
