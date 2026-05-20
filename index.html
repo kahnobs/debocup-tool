@@ -514,13 +514,13 @@
       <!-- PLAYER CARDS VIEW -->
       <div id="usage-cards" style="display:none;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-          <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:var(--text2);">Top picks per player — sorted by most unique golfers used</div>
+          <div style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:var(--text2);">Top picks per player — sorted by current standings</div>
           <div style="display:flex;align-items:center;gap:8px;">
             <label style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:var(--text2);">Show top</label>
             <select id="cards-top-n" onchange="renderUsageCards()" style="font-size:12px;padding:4px 8px;width:auto;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);">
-              <option value="3" selected>3 golfers</option>
+              <option value="3">3 golfers</option>
               <option value="4">4 golfers</option>
-              <option value="5">5 golfers</option>
+              <option value="5" selected>5 golfers</option>
             </select>
             <button onclick="downloadUsageCards()" style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;font-weight:600;padding:5px 14px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text2);cursor:pointer;">Download image ↓</button>
           </div>
@@ -1095,15 +1095,24 @@ function onPreviewEventSelect() {
 function findPastWinners(tournamentName) {
   if (!ALL_RESULTS.length) return [];
 
-  const needle = tournamentName.trim().toLowerCase();
+  // Build keyword set from tournament name for fuzzy matching
+  const stopWords = new Set(['the','of','at','in','a','an','open','championship','classic','invitational','pres','by','presented','tournament','memorial','challenge','cup']);
+  const keywords = tournamentName.toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !stopWords.has(w));
 
-  // Find event winners from RESULTS tab — finish 1, exact tournament name match, grouped by year
+  // Also build a normalized version of the full tournament name for substring matching
+  const normTournament = tournamentName.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Find event winners from RESULTS tab — finish 1, grouped by season
   const winners = [];
-  const seenYears = new Set();
+  const seenSeasons = new Set();
 
   // Sort results by date descending — normalize M/D/YYYY and YYYY-MM-DD formats
   const parseDate = s => {
     if (!s) return 0;
+    // Handle M/D/YYYY format
     const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (mdy) return new Date(mdy[3], mdy[1]-1, mdy[2]).getTime();
     return new Date(s).getTime() || 0;
@@ -1111,16 +1120,25 @@ function findPastWinners(tournamentName) {
   const sorted = [...ALL_RESULTS].sort((a,b) => parseDate(b['Date']) - parseDate(a['Date']));
 
   for (const r of sorted) {
-    if (parseInt(r['Finish']) !== 1) continue;
-    const evtName = (r['Event'] || '').trim().toLowerCase();
-    if (evtName !== needle) continue;
-
+    // Support multiple possible finish column names
+    const finishVal = r['Finish'] ?? r['Place'] ?? r['finish'] ?? r['place'] ?? '';
+    if (parseInt(finishVal) !== 1) continue;
+    const evtName = (r['Event'] || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
     const season = r['Season'] || r['Date']?.substring(0,4) || '';
+
+    // Check if any keyword matches the event name,
+    // OR if the stored event name is contained within the tournament name (e.g. "byron nelson" in "the cj cup byron nelson")
+    // OR if the tournament name is contained within the stored event name
+    const keywordMatch = keywords.length > 0 && keywords.some(kw => evtName.includes(kw));
+    const substringMatch = evtName.length > 4 && (normTournament.includes(evtName) || evtName.includes(normTournament));
+    if (!keywordMatch && !substringMatch) continue;
+
+    // Extract year from season string
     const yearMatch = season.match(/\d{4}/);
     const year = yearMatch ? yearMatch[0] : season;
 
-    if (!seenYears.has(year)) {
-      seenYears.add(year);
+    if (!seenSeasons.has(year)) {
+      seenSeasons.add(year);
       winners.push({ player: r['Player'] || '', season: year });
       if (winners.length >= 3) break;
     }
@@ -2513,28 +2531,27 @@ function renderUsageCards() {
   if (!Object.keys(playerData).length) { renderUsage(); }
 
   const topN = parseInt(document.getElementById('cards-top-n').value) || 5;
-  const players = Object.entries(playerData)
-    .sort((a,b) => Object.keys(b[1]).length - Object.keys(a[1]).length)
-    .map(e => e[0]);
-  const standings = Object.entries(CURRENT_STANDINGS).sort((a,b)=>b[1].pts-a[1].pts).map(e=>e[0]);
+  const standings = Object.entries(CURRENT_STANDINGS).sort((a,b) => b[1].pts - a[1].pts).map(e => e[0]);
+  const players = standings.filter(p => playerData[p]).concat(
+    Object.keys(playerData).filter(p => !standings.includes(p))
+  );
 
-  const dpr   = window.devicePixelRatio || 1;
-  const COLS  = 3;
-  const ROWS  = Math.ceil(players.length / COLS);
+  const dpr = window.devicePixelRatio || 1;
+  const COLS = 4;
+  const ROWS = Math.ceil(players.length / COLS);
 
-  // Measured from reference image
-  const CARD_W   = 346;
-  const CARD_PAD = 16;       // inner horizontal padding
-  const NAME_H   = 52;       // height of player name row
-  const ROW_H    = 42;       // height per golfer row
-  const CARD_H   = NAME_H + topN * ROW_H + 12;
-  const GAP      = 16;
-  const OUTER    = 20;       // page edge padding
-  const HDR_H    = 90;
-  const FTR_H    = 52;
-
-  const W = COLS * CARD_W + (COLS-1) * GAP + OUTER * 2;
-  const H = HDR_H + ROWS * CARD_H + (ROWS-1) * GAP + OUTER * 2 + FTR_H;
+  // Sizing — match the reference aesthetic
+  const CARD_W = 300;
+  const NAME_H = 56;       // player name section height
+  const ROW_H  = 38;       // each golfer row
+  const CARD_VPAD = 16;    // bottom padding inside card
+  const CARD_H = NAME_H + topN * ROW_H + CARD_VPAD;
+  const GAP    = 14;
+  const PAD    = 28;
+  const HEADER_H = 72;
+  const FOOTER_H = 46;
+  const W = COLS * CARD_W + (COLS - 1) * GAP + PAD * 2;
+  const H = HEADER_H + ROWS * CARD_H + (ROWS - 1) * GAP + PAD * 2 + FOOTER_H;
 
   canvas.width  = W * dpr;
   canvas.height = H * dpr;
@@ -2544,153 +2561,119 @@ function renderUsageCards() {
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
 
-  // ── Background: dark charcoal ──
-  ctx.fillStyle = '#1a1a1e';
+  // Page background
+  ctx.fillStyle = '#111111';
   ctx.fillRect(0, 0, W, H);
 
-  // ── Header ──
-  const evtCount = [...new Set(Object.values(playerData).flatMap(d=>Object.values(d).flat()))].length;
-  ctx.fillStyle = '#f0f0f5';
-  ctx.font = 'bold 30px Arial, sans-serif';
+  // Page header
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 26px Arial, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('DEBO Cup · 2026 Season', OUTER, OUTER + 34);
-  ctx.fillStyle = '#888890';
-  ctx.font = '14px Arial, sans-serif';
-  ctx.fillText('Golfer usage through week ' + evtCount, OUTER, OUTER + 58);
+  ctx.fillText('MOST USED GOLFERS', PAD, PAD + 28);
+  ctx.fillStyle = '#888888';
+  ctx.font = '400 13px Arial, sans-serif';
+  ctx.fillText(Object.keys(playerData).reduce((s,p)=>s+Object.keys(playerData[p]).length,0) +
+    ' golfers used across ' +
+    [...new Set(Object.values(playerData).flatMap(d=>Object.values(d).flat()))].length +
+    ' events', PAD, PAD + 52);
 
-  // Thin separator
-  ctx.strokeStyle = '#333338';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(OUTER, HDR_H - 8);
-  ctx.lineTo(W - OUTER, HDR_H - 8);
-  ctx.stroke();
-
-  // ── Cards ──
+  // Player cards
   players.forEach((player, pi) => {
     const col = pi % COLS;
     const row = Math.floor(pi / COLS);
-    const cx  = OUTER + col * (CARD_W + GAP);
-    const cy  = HDR_H + OUTER + row * (CARD_H + GAP);
+    const cx = PAD + col * (CARD_W + GAP);
+    const cy = HEADER_H + PAD + row * (CARD_H + GAP);
 
-    const golfers = Object.entries(playerData[player]||{})
-      .sort((a,b)=>b[1].length-a[1].length||a[0].localeCompare(b[0]));
+    const golfers = Object.entries(playerData[player] || {})
+      .sort((a,b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
 
-    // Card — dark with slightly lighter background and subtle border
-    ctx.fillStyle = '#25252c';
+    // Card bg
+    ctx.fillStyle = '#1c1c1c';
     ctx.beginPath();
-    ctx.roundRect(cx, cy, CARD_W, CARD_H, 8);
+    ctx.roundRect(cx, cy, CARD_W, CARD_H, 10);
     ctx.fill();
-    ctx.strokeStyle = '#32323c';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(cx, cy, CARD_W, CARD_H, 8);
-    ctx.stroke();
 
-    // Player name — large white bold
-    ctx.fillStyle = '#f0f0f5';
-    ctx.font = 'bold 22px Arial, sans-serif';
+    // Gold left border accent on top-3 players
+    const rank = standings.indexOf(player);
+    const accentColor = rank === 0 ? '#b5860d' : rank === 1 ? '#888888' : rank === 2 ? '#8B5E3C' : '#2d5a2d';
+    ctx.fillStyle = accentColor;
+    ctx.beginPath();
+    ctx.roundRect(cx, cy, 4, CARD_H, [10, 0, 0, 10]);
+    ctx.fill();
+
+    // Player name
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 20px Arial, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(player, cx + CARD_PAD, cy + 34);
+    ctx.fillText(player, cx + 18, cy + 34);
 
-    // Unique count — muted blue/grey, right-aligned, with number bolder
-    const uniqNum = golfers.length;
-    ctx.font = 'bold 14px Arial, sans-serif';
+    // Unique count
+    ctx.fillStyle = '#555555';
+    ctx.font = '11px Arial, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillStyle = '#7070a0';
-    ctx.fillText(uniqNum, cx + CARD_W - CARD_PAD - 46, cy + 34);
-    ctx.font = '13px Arial, sans-serif';
-    ctx.fillStyle = '#50507a';
-    ctx.fillText(' unique', cx + CARD_W - CARD_PAD, cy + 34);
+    ctx.fillText(golfers.length + ' unique', cx + CARD_W - 14, cy + 34);
 
-    // Divider under name
-    ctx.strokeStyle = '#2e2e38';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cx + CARD_PAD, cy + NAME_H - 6);
-    ctx.lineTo(cx + CARD_W - CARD_PAD, cy + NAME_H - 6);
-    ctx.stroke();
-
-    // Golfer rows
-    golfers.slice(0, topN).forEach(([golfer, events], gi) => {
-      const uses    = events.length;
-      const gy      = cy + NAME_H + gi * ROW_H;
+    // Golfer rows — no dividers, clean spacing
+    const top = golfers.slice(0, topN);
+    top.forEach(([golfer, events], gi) => {
+      const uses = events.length;
+      const gy = cy + NAME_H + gi * ROW_H;
       const isMulti = uses >= 2;
       const isHot   = uses >= 7;
 
-      // Name text
-      ctx.fillStyle = isMulti ? '#e8e8f0' : '#55555f';
-      ctx.font      = isMulti ? '500 15px Arial, sans-serif' : '14px Arial, sans-serif';
+      // Golfer name — larger, white for multi, muted for single
+      ctx.fillStyle = isMulti ? '#eeeeee' : '#555555';
+      ctx.font = isMulti ? 'bold 14px Arial, sans-serif' : '400 13px Arial, sans-serif';
       ctx.textAlign = 'left';
       let name = golfer;
-      while (ctx.measureText(name).width > CARD_W - 90 && name.length > 6)
+      while (ctx.measureText(name).width > CARD_W - 80 && name.length > 6) {
         name = name.slice(0, -2) + '…';
-      ctx.fillText(name, cx + CARD_PAD, gy + 26);
+      }
+      ctx.fillText(name, cx + 18, gy + 24);
 
       // Pill
-      const pillBg = isHot ? '#b5860d' : isMulti ? '#1e5a8a' : 'transparent';
-      const pillBorder = isMulti ? null : '#3a3a48';
-      const pillFg = isHot ? '#fff3cd' : isMulti ? '#cce4ff' : '#55555f';
-      const lbl  = '×' + uses;
-      ctx.font   = 'bold 12px Arial, sans-serif';
-      const pillW = Math.max(38, ctx.measureText(lbl).width + 18);
-      const pillH = 24;
-      const px   = cx + CARD_W - CARD_PAD - pillW;
-      const py   = gy + 13;
-
+      const pillBg   = isHot ? '#c8942a' : isMulti ? '#2d6a4f' : '#2b2b2b';
+      const pillText = isHot ? '#fff3cd' : isMulti ? '#b7f0cb' : '#555555';
+      const label    = '×' + uses;
+      ctx.font = 'bold 11px Arial, sans-serif';
+      const pillW = Math.max(32, ctx.measureText(label).width + 14);
+      const pillH = 22;
+      const px    = cx + CARD_W - 14 - pillW;
+      const py    = gy + 13;
       ctx.fillStyle = pillBg;
       ctx.beginPath();
-      ctx.roundRect(px, py, pillW, pillH, 12);
+      ctx.roundRect(px, py, pillW, pillH, 4);
       ctx.fill();
-      if (pillBorder) {
-        ctx.strokeStyle = pillBorder;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.roundRect(px, py, pillW, pillH, 12);
-        ctx.stroke();
-      }
-      ctx.fillStyle = pillFg;
+      ctx.fillStyle = pillText;
       ctx.textAlign = 'center';
-      ctx.fillText(lbl, px + pillW / 2, py + 16.5);
+      ctx.fillText(label, px + pillW / 2, py + 15);
     });
   });
 
-  // ── Footer legend ──
-  const fy = H - FTR_H + 16;
-  const legendItems = [
-    { bg: '#b5860d', fg: '#fff3cd', border: null,      label: '×7+', desc: 'high loyalty' },
-    { bg: '#1e5a8a', fg: '#cce4ff', border: null,      label: '×2+', desc: 'repeat pick'  },
-    { bg: 'transparent', fg: '#55555f', border: '#3a3a48', label: '×1',  desc: 'used once'   },
+  // Footer legend
+  const fy = H - FOOTER_H + 14;
+  const legend = [
+    { color: '#c8942a', label: '×7+ high loyalty' },
+    { color: '#2d6a4f', label: '×2+ repeat pick'  },
+    { color: '#2b2b2b', label: '×1 used once'      },
   ];
-  let lx = OUTER;
-  ctx.font = '12px Arial, sans-serif';
-  legendItems.forEach(({ bg, fg, border, label, desc }) => {
-    const pw = 38, ph = 22;
-    ctx.fillStyle = bg;
+  let lx = PAD;
+  ctx.font = '11px Arial, sans-serif';
+  legend.forEach(({ color, label }) => {
+    ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.roundRect(lx, fy, pw, ph, 11);
+    ctx.roundRect(lx, fy, 12, 12, 2);
     ctx.fill();
-    if (border) {
-      ctx.strokeStyle = border;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.roundRect(lx, fy, pw, ph, 11);
-      ctx.stroke();
-    }
-    ctx.fillStyle = fg;
-    ctx.font = 'bold 11px Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(label, lx + pw / 2, fy + 15);
-    ctx.fillStyle = '#888890';
-    ctx.font = '12px Arial, sans-serif';
+    ctx.fillStyle = '#666666';
     ctx.textAlign = 'left';
-    ctx.fillText(desc, lx + pw + 6, fy + 15);
-    lx += pw + ctx.measureText(desc).width + 22;
+    ctx.fillText(label, lx + 17, fy + 11);
+    lx += ctx.measureText(label).width + 40;
   });
-  ctx.fillStyle = '#44444e';
+  ctx.fillStyle = '#444444';
   ctx.textAlign = 'right';
-  ctx.fillText('debocup.com', W - OUTER, fy + 15);
+  ctx.fillText('debocup.com', W - PAD, fy + 11);
 }
+
 function downloadUsageCards() {
   const canvas = document.getElementById('usage-cards-canvas');
   if (!canvas) return;
