@@ -1278,6 +1278,10 @@ function renderOwnershipCanvas(sorted, tournament, week, totalPlayers) {
   ctx.fillText('Own%',       COL[1] + colW[1]/2, hy + 27);
   ctx.fillText('Owners',     COL[2] + colW[2]/2, hy + 27);
 
+  // Chalk threshold: ownership % of the 4th-highest golfer (bold everyone tied at or above it)
+  const canvasChalkCount = sorted.length >= 4 ? sorted[3][1].length : (sorted.length ? sorted[sorted.length-1][1].length : 0);
+  const canvasChalkPct = totalPlayers > 0 ? canvasChalkCount / totalPlayers : 0;
+
   // Rows
   sorted.forEach(([golfer, owners], i) => {
     const y = TITLE_H + HEADER_H + i * ROW_H;
@@ -1285,7 +1289,7 @@ function renderOwnershipCanvas(sorted, tournament, week, totalPlayers) {
     ctx.fillRect(0, y, W, ROW_H);
 
     const pct = ((owners.length / totalPlayers) * 100).toFixed(2) + '%';
-    const isTop = i < 4; // bold top 4 by ownership
+    const isTop = totalPlayers > 0 && (owners.length / totalPlayers) >= canvasChalkPct;
 
     // Golfer name
     ctx.fillStyle = '#ffffff';
@@ -1584,11 +1588,13 @@ function buildCutSweatFromLineups() {
   const tbody = document.getElementById('cut-sweat-tbody');
   tbody.innerHTML = '';
   const sorted = Object.entries(golferMap).sort((a,b) => b[1].length - a[1].length);
-  const topOwned = sorted.slice(0,4).map(e => e[0]); // auto-bold top 4
+  // Chalk threshold: ownership % of the 4th-highest golfer (bold everyone at or above it)
+  const chalkThreshCount = sorted.length >= 4 ? sorted[3][1].length : (sorted.length ? sorted[sorted.length-1][1].length : 0);
+  const chalkThreshPct = totalPlayers > 0 ? chalkThreshCount / totalPlayers : 0;
 
   sorted.forEach(([golfer, owners]) => {
     const pct = ((owners.length / totalPlayers) * 100).toFixed(2);
-    const isBold = topOwned.includes(golfer);
+    const isBold = totalPlayers > 0 && (owners.length / totalPlayers) >= chalkThreshPct;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="padding:5px 8px;border-bottom:0.5px solid var(--border);font-weight:${isBold?'600':'400'}">${golfer}</td>
