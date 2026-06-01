@@ -2559,12 +2559,11 @@ function renderUsageCards() {
   const COLS = 4;
   const ROWS = Math.ceil(players.length / COLS);
 
-  // Layout constants
   const CARD_W    = 256;
   const CARD_PAD  = 14;
-  const NAME_H    = 50;   // header area height
-  const ROW_H     = 29;
-  const CARD_H    = NAME_H + topN * ROW_H + 8;
+  const NAME_H    = 44;
+  const ROW_H     = 32;
+  const CARD_H    = NAME_H + topN * ROW_H + 10;
   const GAP       = 10;
   const OUTER_PAD = 22;
   const BANNER_H  = 60;
@@ -2580,12 +2579,12 @@ function renderUsageCards() {
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
 
-  // ── Page background: very dark navy, not pure black ──
+  // Background
   ctx.fillStyle = '#0c0c10';
   ctx.fillRect(0, 0, W, H);
 
-  // Subtle dot-grid texture
-  ctx.fillStyle = 'rgba(255,255,255,0.025)';
+  // Dot grid texture
+  ctx.fillStyle = 'rgba(255,255,255,0.022)';
   for (let gx = OUTER_PAD; gx < W - OUTER_PAD; gx += 18) {
     for (let gy = BANNER_H; gy < H - FOOTER_H; gy += 18) {
       ctx.beginPath();
@@ -2594,7 +2593,6 @@ function renderUsageCards() {
     }
   }
 
-  // ── Banner ──────────────────────────────────────────────────────────────
   // Gold top bar
   const goldGrad = ctx.createLinearGradient(0, 0, W, 0);
   goldGrad.addColorStop(0,   '#c8942a');
@@ -2603,6 +2601,7 @@ function renderUsageCards() {
   ctx.fillStyle = goldGrad;
   ctx.fillRect(0, 0, W, 3);
 
+  // Banner text
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 24px Arial, sans-serif';
   ctx.textAlign = 'left';
@@ -2610,7 +2609,7 @@ function renderUsageCards() {
 
   const totalEvents  = [...new Set(Object.values(playerData).flatMap(d => Object.values(d).flat()))].length;
   const totalGolfers = Object.keys(playerData).reduce((s,p) => s + Object.keys(playerData[p]).length, 0);
-  ctx.fillStyle = '#4a4a5a';
+  ctx.fillStyle = '#44445a';
   ctx.font = '11px Arial, sans-serif';
   ctx.fillText(totalGolfers + ' golfers  ·  ' + totalEvents + ' events  ·  sorted by roster depth', OUTER_PAD, 54);
 
@@ -2621,60 +2620,48 @@ function renderUsageCards() {
     const cx  = OUTER_PAD + col * (CARD_W + GAP);
     const cy  = BANNER_H + OUTER_PAD + row * (CARD_H + GAP);
 
-    const golfers      = Object.entries(playerData[player] || {})
-                          .sort((a,b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
-    const standingsRank = standings.indexOf(player);  // 0-based
+    const golfers       = Object.entries(playerData[player] || {})
+                           .sort((a,b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+    const standingsRank = standings.indexOf(player);
     const pColor        = TREND_COLORS[standingsRank % TREND_COLORS.length];
     const uniqueCount   = golfers.length;
     const top           = golfers.slice(0, topN);
     const localMax      = top[0] ? top[0][1].length : 1;
 
-    // ── Card shell: rounded rect, slightly lighter than bg ──
+    // Card bg
     ctx.fillStyle = '#13131a';
     ctx.beginPath();
     ctx.roundRect(cx, cy, CARD_W, CARD_H, 6);
     ctx.fill();
 
-    // Left accent stripe (player color, full card height)
+    // Left accent stripe
     ctx.fillStyle = pColor;
     ctx.beginPath();
     ctx.roundRect(cx, cy, 3, CARD_H, [6, 0, 0, 6]);
     ctx.fill();
 
-    // ── Card header ─────────────────────────────────────────────────────
-    // Player name — white, bold
+    // ── Card header ──────────────────────────────────────────────────────
+    // Player name + unique count on same line
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 15px Arial, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(player, cx + CARD_PAD, cy + 22);
+    ctx.fillText(player, cx + CARD_PAD, cy + 20);
 
-    // "N unique" pill — player color background
-    const uniqLabel = uniqueCount + ' unique';
-    ctx.font = 'bold 9px Arial, sans-serif';
-    const pillW = ctx.measureText(uniqLabel).width + 12;
-    const pillX = cx + CARD_PAD;
-    const pillY = cy + 28;
+    // Unique count right after name, in player color, same baseline
+    const nameW = ctx.measureText(player).width;
     ctx.fillStyle = pColor;
-    ctx.globalAlpha = 0.2;
-    ctx.beginPath();
-    ctx.roundRect(pillX, pillY, pillW, 14, 3);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = pColor;
-    ctx.textAlign = 'left';
-    ctx.fillText(uniqLabel, pillX + 6, pillY + 10);
+    ctx.font = '600 11px Arial, sans-serif';
+    ctx.fillText('· ' + uniqueCount + ' unique', cx + CARD_PAD + nameW + 5, cy + 20);
 
-    // Rank number top-right, small, muted
-    ctx.fillStyle = pColor;
-    ctx.globalAlpha = 0.35;
-    ctx.font = 'bold 13px Arial, sans-serif';
+    // Rank: tiny, bottom-right of header area, very muted
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.font = '500 10px Arial, sans-serif';
     ctx.textAlign = 'right';
     ctx.fillText('#' + (standingsRank + 1), cx + CARD_W - CARD_PAD, cy + 20);
-    ctx.globalAlpha = 1;
 
-    // Thin separator line
+    // Separator
     ctx.strokeStyle = pColor;
-    ctx.globalAlpha = 0.15;
+    ctx.globalAlpha = 0.18;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(cx + 3, cy + NAME_H);
@@ -2682,77 +2669,77 @@ function renderUsageCards() {
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    // ── Golfer rows ─────────────────────────────────────────────────────
+    // ── Golfer rows ──────────────────────────────────────────────────────
     top.forEach(([golfer, events], gi) => {
       const uses    = events.length;
       const gy      = cy + NAME_H + gi * ROW_H;
       const isHot   = uses >= 7;
       const isMulti = uses >= 2;
 
-      // Usage bar: full-width bg track + filled portion
-      const barX  = cx + 3;  // starts right after the accent stripe
-      const barY  = gy + ROW_H - 2;
+      // Usage bar: 4px tall, prominent, behind the text
+      const barX    = cx + 3;
       const barMaxW = CARD_W - 3;
       const barFill = Math.round(barMaxW * (uses / localMax));
+      const barY    = gy + ROW_H - 5;
 
       // Track
-      ctx.fillStyle = 'rgba(255,255,255,0.04)';
-      ctx.fillRect(barX, barY, barMaxW, 1);
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, barMaxW, 4, 2);
+      ctx.fill();
       // Fill
       ctx.fillStyle = isHot ? '#c8942a' : pColor;
-      ctx.globalAlpha = isHot ? 0.7 : isMulti ? 0.45 : 0.2;
-      ctx.fillRect(barX, barY, barFill, 1);
+      ctx.globalAlpha = isHot ? 0.85 : isMulti ? 0.55 : 0.25;
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, barFill, 4, 2);
+      ctx.fill();
       ctx.globalAlpha = 1;
 
       // Name
-      const nameColor = isHot ? '#f5c842' : isMulti ? '#d8d8e8' : '#3a3a4a';
+      const nameColor = isHot ? '#f5c842' : isMulti ? '#d0d0e0' : '#565668';
       ctx.fillStyle = nameColor;
-      ctx.font = isHot ? 'bold 12px Arial, sans-serif'
+      ctx.font = isHot   ? 'bold 12px Arial, sans-serif'
                : isMulti ? '500 12px Arial, sans-serif'
-               : '400 11px Arial, sans-serif';
+               :           '400 11px Arial, sans-serif';
       ctx.textAlign = 'left';
       let name = golfer;
-      while (ctx.measureText(name).width > CARD_W - 48 && name.length > 5) {
+      while (ctx.measureText(name).width > CARD_W - 50 && name.length > 5) {
         name = name.slice(0, -2) + '…';
       }
-      ctx.fillText(name, cx + CARD_PAD, gy + ROW_H - 9);
+      ctx.fillText(name, cx + CARD_PAD, gy + 18);
 
-      // Count: colored, right-aligned, no pill needed
-      ctx.fillStyle = isHot ? '#c8942a' : isMulti ? pColor : '#2a2a38';
+      // Count
+      ctx.fillStyle = isHot ? '#c8942a' : isMulti ? pColor : '#404052';
       ctx.font = 'bold 11px Arial, sans-serif';
       ctx.textAlign = 'right';
-      ctx.fillText('×' + uses, cx + CARD_W - CARD_PAD, gy + ROW_H - 9);
+      ctx.fillText('×' + uses, cx + CARD_W - CARD_PAD, gy + 18);
     });
   });
 
   // ── Footer ───────────────────────────────────────────────────────────────
   const fy = H - FOOTER_H + 8;
-
-  // Thin gold line above footer
-  ctx.fillStyle = 'rgba(200,148,42,0.3)';
+  ctx.fillStyle = 'rgba(200,148,42,0.25)';
   ctx.fillRect(OUTER_PAD, H - FOOTER_H, W - OUTER_PAD * 2, 1);
 
   const legend = [
     { color: '#c8942a', label: '×7+ loyalty' },
-    { color: '#ffffff', label: '×2+ repeat'  },
-    { color: '#3a3a4a', label: '×1 once'     },
+    { color: '#8888aa', label: '×2+ repeat'  },
+    { color: '#404052', label: '×1 once'     },
   ];
   let lx = OUTER_PAD;
   ctx.font = '10px Arial, sans-serif';
   legend.forEach(({ color, label }) => {
     ctx.fillStyle = color;
-    ctx.globalAlpha = color === '#ffffff' ? 0.4 : 1;
     ctx.beginPath();
     ctx.arc(lx + 4, fy + 4, 3.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = '#3a3a50';
+    ctx.fillStyle = '#44445a';
     ctx.textAlign = 'left';
     ctx.fillText(label, lx + 13, fy + 8);
     lx += ctx.measureText(label).width + 26;
   });
 
-  ctx.fillStyle = '#3a3a50';
+  ctx.fillStyle = '#44445a';
   ctx.font = 'bold 10px Arial, sans-serif';
   ctx.textAlign = 'right';
   ctx.fillText('debocup.com', W - OUTER_PAD, fy + 8);
