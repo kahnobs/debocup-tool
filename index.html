@@ -2648,13 +2648,11 @@ function renderUsageCards() {
     ctx.textAlign = 'left';
     ctx.fillText(player, cx + CARD_PAD, cy + 21);
 
-    // Unique count — smaller, lighter, after a gap
+    // Unique count — smaller, fixed readable gray so dark player colors stay legible
     const nameW = ctx.measureText(player).width;
-    ctx.fillStyle = pColor;
-    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = '#7a7a96';
     ctx.font = '400 10px Arial, sans-serif';
     ctx.fillText('· ' + uniqueCount + ' unique', cx + CARD_PAD + nameW + 4, cy + 21);
-    ctx.globalAlpha = 1;
 
     // Rank — barely visible, bottom right
     ctx.fillStyle = 'rgba(255,255,255,0.1)';
@@ -2693,8 +2691,11 @@ function renderUsageCards() {
       ctx.fillText(name, cx + CARD_PAD, gy + 16);
 
       // Usage bar — sits directly under name text like an underline
+      // Measure count badge width so bar never overlaps it
+      ctx.font = 'bold 11px Arial, sans-serif';
+      const countW  = ctx.measureText('×' + uses).width + 6;
       const barX    = cx + CARD_PAD;
-      const barMaxW = CARD_W - CARD_PAD * 2 - 28; // leave room for count
+      const barMaxW = CARD_W - CARD_PAD * 2 - countW - 8;
       const barFill = Math.round(barMaxW * (uses / localMax));
       const barY    = gy + 20; // snug under the baseline
 
