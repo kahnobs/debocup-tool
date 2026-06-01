@@ -2248,6 +2248,10 @@ function renderTrend() {
       ctx.stroke();
 
       // Dots + rank number labels on line
+      const validIndices = rankSeries.map((r,i) => r !== null ? i : -1).filter(i => i >= 0);
+      const firstValidIdx = validIndices[0] ?? -1;
+      const lastValidIdx  = validIndices[validIndices.length - 1] ?? -1;
+
       rankSeries.forEach((rank, i) => {
         if (rank === null) return;
         const x = PAD.l + i * xStep;
@@ -2259,12 +2263,22 @@ function renderTrend() {
         ctx.arc(x, y, 3, 0, Math.PI * 2);
         ctx.fill();
 
-        // Rank number above/below dot
-        ctx.fillStyle = color;
-        ctx.font = 'bold 9px Helvetica Neue, Arial, sans-serif';
-        ctx.textAlign = 'center';
-        const labelY = y > PAD.t + cH * 0.5 ? y - 6 : y + 13;
-        ctx.fillText(rank, x, labelY);
+        // Only label at rank changes, first, and last dot
+        const prevRank   = rankSeries.slice(0, i).filter(r => r !== null).at(-1) ?? null;
+        const nextRank   = rankSeries.slice(i + 1).find(r => r !== null) ?? null;
+        const isFirst    = i === firstValidIdx;
+        const isLast     = i === lastValidIdx;
+        const changed    = prevRank !== null && rank !== prevRank;
+        const willChange = nextRank !== null && rank !== nextRank;
+        const showLabel  = isFirst || isLast || changed || willChange;
+
+        if (showLabel) {
+          ctx.fillStyle = color;
+          ctx.font = 'bold 9px Helvetica Neue, Arial, sans-serif';
+          ctx.textAlign = 'center';
+          const labelY = y > PAD.t + cH * 0.5 ? y - 6 : y + 13;
+          ctx.fillText(rank, x, labelY);
+        }
       });
 
       // X axis week number labels
