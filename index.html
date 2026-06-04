@@ -1236,7 +1236,10 @@ function renderOwnershipCanvas(sorted, tournament, week, totalPlayers) {
   const COL_GOLFER = Math.max(160, Math.ceil(maxGolfer) + 20);
   const COL_OWN = 70;
   const COL_OWNERS = Math.max(200, Math.ceil(maxOwners) + 20);
-  const W = COL_GOLFER + COL_OWN + COL_OWNERS + 16;
+  const title = week ? week + ' — ' + tournament : tournament;
+  tempCtx.font = 'bold 20px Arial, sans-serif';
+  const titleW = Math.ceil(tempCtx.measureText(title).width) + 48;
+  const W = Math.max(COL_GOLFER + COL_OWN + COL_OWNERS + 16, titleW);
 
   const ROW_H = 30;
   const HEADER_H = 44;
@@ -1260,7 +1263,6 @@ function renderOwnershipCanvas(sorted, tournament, week, totalPlayers) {
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 20px Arial, sans-serif';
   ctx.textAlign = 'center';
-  const title = week ? week + ' — ' + tournament : tournament;
   ctx.fillText(title, W/2, 32);
 
   // Column layout: Golfer | Own% | Owners
