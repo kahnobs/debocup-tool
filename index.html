@@ -117,6 +117,29 @@
     .meta-grid { grid-template-columns: 1fr; }
     .results-header, .result-row { grid-template-columns: 1.5fr 60px 75px 50px 50px 24px; }
   }
+
+  /* ── Form Dashboard ─────────────────────────────────────── */
+  .form-controls { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:16px; }
+  .form-pill { font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; padding:4px 12px; border:0.5px solid var(--border2); border-radius:20px; background:var(--bg); color:var(--text2); cursor:pointer; transition:all 0.12s; }
+  .form-pill:hover { border-color:var(--text); color:var(--text); }
+  .form-pill.active { background:var(--text); color:var(--bg); border-color:var(--text); }
+  .form-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
+  .form-card { background:var(--bg); border:0.5px solid var(--border); border-radius:var(--radius-lg); padding:12px 14px 10px; transition:border-color 0.15s; }
+  .form-card:hover { border-color:var(--border2); }
+  .form-card-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:5px; }
+  .form-player-name { font-family:'Helvetica Neue',Arial,sans-serif; font-size:14px; font-weight:700; color:var(--text); }
+  .form-player-sub { font-family:'Helvetica Neue',Arial,sans-serif; font-size:10px; color:var(--text3); margin-top:2px; letter-spacing:0.01em; }
+  .form-status { font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:0.03em; }
+  .form-chart-box { position:relative; width:100%; height:88px; margin:8px 0 6px; }
+  .form-pips-row { display:flex; align-items:center; justify-content:space-between; }
+  .form-pips-label { font-family:'Helvetica Neue',Arial,sans-serif; font-size:10px; color:var(--text3); }
+  .form-pips { display:flex; gap:3px; }
+  .form-pip { width:18px; height:18px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-family:'Helvetica Neue',Arial,sans-serif; font-size:9px; font-weight:700; }
+  .form-pip-null { background:var(--bg2); color:var(--text3); }
+  .form-empty { font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--text2); padding:2rem; text-align:center; }
+  .form-legend-row { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--text2); align-items:center; }
+  .form-legend-item { display:flex; align-items:center; gap:5px; }
+  .form-legend-swatch { width:24px; height:3px; border-radius:2px; }
   .trend-pill { font-family: 'Helvetica Neue',Arial,sans-serif; font-size:12px; font-weight:600; padding:4px 10px; border:0.5px solid var(--border2); border-radius:20px; background:var(--bg); color:var(--text2); cursor:pointer; transition:all 0.12s; }
   .trend-pill:hover { border-color:var(--text); color:var(--text); }
   .trend-pill.active { background:var(--text); color:var(--bg); border-color:var(--text); }
@@ -186,6 +209,7 @@
     <button class="top-tab" onclick="showTopTab('live-standings',this)">Current standings</button>
     <button class="top-tab" onclick="showTopTab('trend',this)">Standings trend</button>
     <button class="top-tab" onclick="showTopTab('usage',this)">Golfer usage</button>
+    <button class="top-tab" onclick="showTopTab('form',this)">Form dashboard</button>
   </div>
 
   <!-- ENTER RESULTS TAB -->
@@ -481,6 +505,54 @@
       <div id="trend-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;"></div>
       <p style="font-size:11px;color:var(--text3);font-family:'Helvetica Neue',Arial,sans-serif;margin-top:12px;text-align:center;letter-spacing:0.02em;">Players' season-long standing after each event</p>
       <p id="trend-empty" style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;display:none;margin-top:1rem;">No results data available — check that the sheet is publicly readable.</p>
+    </div>
+  </div>
+
+  <!-- FORM DASHBOARD TAB -->
+  <div id="top-form" style="display:none;">
+    <div class="card" style="padding:1rem 1.25rem;">
+
+      <!-- Header row -->
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;">
+        <div>
+          <div class="section-label" style="margin-bottom:3px;">Player form dashboard — 2026 season</div>
+          <p style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;color:var(--text3);line-height:1.5;">Hot / Cold based on last 5 events vs. season average. Dashed line = season baseline.</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <label style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;color:var(--text2);">Recent window:</label>
+          <select id="form-window-select" onchange="renderFormDashboard()" style="font-size:12px;padding:4px 8px;width:auto;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);">
+            <option value="3">Last 3</option>
+            <option value="5" selected>Last 5</option>
+            <option value="8">Last 8</option>
+            <option value="0">All season</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div class="form-legend-row" style="margin-top:10px;">
+        <div class="form-legend-item"><div class="form-legend-swatch" style="background:#2d6a4f;"></div><span>Season avg baseline</span></div>
+        <div class="form-legend-item"><div style="width:10px;height:10px;border-radius:50%;background:#b5860d;"></div><span>Major / Signature event</span></div>
+        <div class="form-legend-item"><div class="form-pip" style="background:#d4edda;color:#2d6a4f;width:16px;height:16px;">1</div><span style="margin-left:2px;">Top 3 finish</span></div>
+        <div class="form-legend-item"><div class="form-pip" style="background:#fff3cd;color:#856404;width:16px;height:16px;">5</div><span style="margin-left:2px;">Mid finish</span></div>
+        <div class="form-legend-item"><div class="form-pip" style="background:#f8d7da;color:#842029;width:16px;height:16px;">9</div><span style="margin-left:2px;">Bottom finish</span></div>
+      </div>
+
+      <!-- Sort controls -->
+      <div class="form-controls">
+        <span style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Sort:</span>
+        <button class="form-pill active" id="fpill-hot" onclick="setFormSort('hot',this)">🔥 Hottest → Coldest</button>
+        <button class="form-pill" id="fpill-form" onclick="setFormSort('form',this)">Recent avg</button>
+        <button class="form-pill" id="fpill-season" onclick="setFormSort('season',this)">Season avg</button>
+        <button class="form-pill" id="fpill-name" onclick="setFormSort('name',this)">Name</button>
+      </div>
+
+      <!-- Cards grid -->
+      <div class="form-grid" id="form-grid">
+        <p class="form-empty">Loading results data…</p>
+      </div>
+      <p id="form-empty-msg" style="display:none;" class="form-empty">No results data available — check that the sheet is publicly readable.</p>
+
     </div>
   </div>
 
@@ -1619,13 +1691,14 @@ function buildCutSweatFromLineups() {
 // Auto-build when switching to Cut Sweat tab
 const origShowTopTab = showTopTab;
 function showTopTab(name, btn) {
-  ['enter','preview','ownership','cutsweat','history','live-standings','trend','usage'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
+  ['enter','preview','ownership','cutsweat','history','live-standings','trend','usage','form'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
   document.querySelectorAll('.top-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if (name === 'cutsweat') buildCutSweatFromLineups();
   if (name === 'ownership') syncOwnershipFromPreview();
   if (name === 'trend') { populateTrendPlayerSelect(); renderTrend(); }
   if (name === 'usage') renderUsage();
+  if (name === 'form') renderFormDashboard();
 }
 
 function parseScore(s) {
@@ -2761,6 +2834,336 @@ function downloadUsageCards() {
   link.download = 'debo-cup-player-usage.png';
   link.href = canvas.toDataURL('image/png');
   link.click();
+}
+
+// ── Form Dashboard ────────────────────────────────────────────────────────
+
+let _formSort = 'hot';
+const FORM_PLAYER_COLORS = {
+  'Anth':'#1a6091','B Luke':'#c05c00','Brad':'#2c6e49','Broc':'#6a0572',
+  'Colin':'#9b2226','DeCampli':'#1b6355','Kyle':'#b5860d','MK':'#5c5c5c',
+  'Stew':'#1a6091','Wiley':'#7c3d12','Woody':'#2d6a4f','Zach':'#8b4513',
+  'Loomis':'#4a1942','Lloyd':'#0d3b6e'
+};
+
+function _formParseDate(s) {
+  if (!s) return 0;
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return new Date(m[3], m[1]-1, m[2]).getTime();
+  return new Date(s).getTime() || 0;
+}
+
+function getFormData() {
+  const season = ALL_RESULTS.filter(r => (r['Season']||'').includes('2026') && r['Player'] && r['Event']);
+  if (!season.length) return null;
+
+  // Build ordered event list with type info
+  const eventMap = {};
+  season.forEach(r => {
+    const evt = r['Event']||'';
+    if (evt && !eventMap[evt]) {
+      eventMap[evt] = { date: r['Date']||'', type: (r['Event Type']||r['Event_Type']||'Regular'), isMajor: (r['Is_Major']||r['IsMajor']||'').toString().toLowerCase() === 'true' };
+    }
+  });
+  const allEvents = Object.entries(eventMap)
+    .sort((a,b) => _formParseDate(a[1].date) - _formParseDate(b[1].date))
+    .map(([name, info]) => ({ name, ...info }));
+
+  // Build per-player finish arrays aligned to allEvents
+  const players = [...new Set(season.map(r=>r['Player']).filter(Boolean))];
+  const playerData = {};
+  players.forEach(p => {
+    const finishes = allEvents.map(evt => {
+      const row = season.find(r => r['Player']===p && r['Event']===evt.name);
+      if (!row) return null;
+      const f = parseInt(row['Finish']);
+      return isNaN(f) || f <= 0 ? null : f;
+    });
+    const played = finishes.filter(v => v !== null);
+    playerData[p] = { finishes, played };
+  });
+  return { allEvents, playerData, players };
+}
+
+function formSeasonAvg(played) {
+  return played.length ? played.reduce((a,b)=>a+b,0)/played.length : null;
+}
+
+function formRecentAvg(played, window) {
+  const w = window === 0 ? played.length : window;
+  const slice = played.slice(-w);
+  return slice.length ? slice.reduce((a,b)=>a+b,0)/slice.length : null;
+}
+
+function formHeatDelta(played, window) {
+  const sa = formSeasonAvg(played);
+  const ra = formRecentAvg(played, window);
+  if (sa === null || ra === null) return 0;
+  return sa - ra; // positive = hot
+}
+
+function formTrend(delta) {
+  if (delta > 1)  return { label:'↑ Hot',    color:'var(--green)' };
+  if (delta < -1) return { label:'↓ Cold',   color:'var(--red)' };
+  return               { label:'→ Steady', color:'var(--gold)' };
+}
+
+function formPipStyle(v, nPlayers) {
+  if (v === null) return null;
+  const pct = (v - 1) / (nPlayers - 1 || 1);
+  if (pct < 0.33) return 'background:#d4edda;color:#2d6a4f;';
+  if (pct < 0.66) return 'background:#fff3cd;color:#856404;';
+  return 'background:#f8d7da;color:#842029;';
+}
+
+function setFormSort(mode, btn) {
+  _formSort = mode;
+  document.querySelectorAll('.form-pill').forEach(b => { b.classList.remove('active'); b.style.background=''; b.style.color=''; b.style.borderColor=''; });
+  btn.classList.add('active');
+  renderFormDashboard();
+}
+
+function renderFormDashboard() {
+  const grid = document.getElementById('form-grid');
+  const emptyMsg = document.getElementById('form-empty-msg');
+  if (!grid) return;
+
+  const data = getFormData();
+  if (!data || !data.players.length) {
+    grid.innerHTML = '';
+    emptyMsg.style.display = '';
+    return;
+  }
+  emptyMsg.style.display = 'none';
+
+  const { allEvents, playerData, players } = data;
+  const recentWindow = parseInt(document.getElementById('form-window-select').value) || 5;
+  const nPlayers = players.length;
+
+  // Sort players
+  function sortVal(p) {
+    const pd = playerData[p];
+    if (_formSort === 'hot')    return -formHeatDelta(pd.played, recentWindow);
+    if (_formSort === 'form')   return formRecentAvg(pd.played, recentWindow) ?? 999;
+    if (_formSort === 'season') return formSeasonAvg(pd.played) ?? 999;
+    return p.toLowerCase();
+  }
+  const sorted = [...players].sort((a,b) => {
+    const va = sortVal(a), vb = sortVal(b);
+    return typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+  });
+
+  grid.innerHTML = '';
+  const dpr = window.devicePixelRatio || 1;
+
+  sorted.forEach((p, idx) => {
+    const pd = playerData[p];
+    const { finishes, played } = pd;
+    const seasonAvg  = formSeasonAvg(played);
+    const recentAvg  = formRecentAvg(played, recentWindow);
+    const delta      = formHeatDelta(played, recentWindow);
+    const trend      = formTrend(delta);
+    const deltaStr   = seasonAvg !== null && recentAvg !== null ? (delta >= 0 ? '+' : '') + delta.toFixed(1) : '—';
+    const color      = FORM_PLAYER_COLORS[p] || TREND_COLORS[idx % TREND_COLORS.length];
+
+    // Last N played pips
+    const lastNPlayed = played.slice(-Math.max(recentWindow, 5));
+
+    // Wins & top 3s
+    const wins  = played.filter(v => v === 1).length;
+    const top3s = played.filter(v => v <= 3).length;
+
+    // Card
+    const card = document.createElement('div');
+    card.className = 'form-card';
+
+    // Pip HTML
+    const pipHtml = lastNPlayed.map(v => {
+      const s = formPipStyle(v, nPlayers);
+      return `<div class="form-pip" style="${s}">${v}</div>`;
+    }).join('');
+
+    card.innerHTML = `
+      <div class="form-card-header">
+        <div>
+          <div class="form-player-name">${p}</div>
+          <div class="form-player-sub">
+            Season avg: ${seasonAvg !== null ? seasonAvg.toFixed(1) : '—'} &nbsp;·&nbsp;
+            Recent avg: ${recentAvg !== null ? recentAvg.toFixed(1) : '—'} &nbsp;·&nbsp;
+            Δ <span style="font-weight:700;color:${trend.color};">${deltaStr}</span>
+          </div>
+          <div class="form-player-sub" style="margin-top:1px;">
+            ${wins} win${wins!==1?'s':''} &nbsp;·&nbsp; ${top3s} top-3${top3s!==1?'s':''}  &nbsp;·&nbsp; ${played.length} events
+          </div>
+        </div>
+        <div class="form-status" style="color:${trend.color};">${trend.label}</div>
+      </div>
+      <div class="form-chart-box">
+        <canvas id="fchart-${idx}" style="display:block;width:100%;height:88px;"></canvas>
+      </div>
+      <div class="form-pips-row">
+        <span class="form-pips-label">Last ${lastNPlayed.length} played:</span>
+        <div class="form-pips">${pipHtml}</div>
+      </div>`;
+
+    grid.appendChild(card);
+
+    // Draw the mini chart on canvas using native 2D API (matches existing tool style)
+    requestAnimationFrame(() => {
+      const canvas = document.getElementById('fchart-' + idx);
+      if (!canvas) return;
+      const W = canvas.offsetWidth || 252;
+      const H = 88;
+      canvas.width  = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width  = W + 'px';
+      canvas.style.height = H + 'px';
+
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      const PAD = { t:8, b:16, l:24, r:8 };
+      const cW = W - PAD.l - PAD.r;
+      const cH = H - PAD.t - PAD.b;
+
+      // Background
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+
+      const n = allEvents.length;
+      if (n < 1) return;
+      const xStep = n > 1 ? cW / (n - 1) : cW;
+
+      // Y scale: 1 (best) at top, nPlayers at bottom
+      const yFor = v => PAD.t + ((v - 1) / (nPlayers - 1 || 1)) * cH;
+
+      // Faint horizontal guides at 1st, mid, last
+      [1, Math.ceil(nPlayers/2), nPlayers].forEach(r => {
+        ctx.strokeStyle = '#e8e6e0';
+        ctx.lineWidth = 0.5;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(PAD.l, yFor(r));
+        ctx.lineTo(W - PAD.r, yFor(r));
+        ctx.stroke();
+      });
+
+      // Y axis labels (1st / last)
+      ctx.fillStyle = '#b0aea8';
+      ctx.font = '8px Helvetica Neue, Arial, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText('1st', PAD.l - 3, yFor(1) + 3);
+      ctx.fillText(nPlayers + (nPlayers===12?'th':nPlayers===11?'th':nPlayers===10?'th':'th'), PAD.l - 3, yFor(nPlayers) + 3);
+
+      // Season baseline (dashed green)
+      if (seasonAvg !== null) {
+        const baseY = yFor(seasonAvg);
+        ctx.strokeStyle = '#2d6a4f';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(PAD.l, baseY);
+        ctx.lineTo(W - PAD.r, baseY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      }
+
+      // Filled area under the line
+      const points = finishes.map((v, i) => v !== null ? { x: PAD.l + i * xStep, y: yFor(v) } : null);
+      const validPts = points.filter(Boolean);
+      if (validPts.length > 1) {
+        ctx.beginPath();
+        let first = true;
+        points.forEach((pt, i) => {
+          if (!pt) return;
+          if (first) { ctx.moveTo(pt.x, pt.y); first = false; }
+          else ctx.lineTo(pt.x, pt.y);
+        });
+        // Close fill path to baseline
+        const lastPt = validPts[validPts.length - 1];
+        const firstPt = validPts[0];
+        ctx.lineTo(lastPt.x, H - PAD.b);
+        ctx.lineTo(firstPt.x, H - PAD.b);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.08;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // Main line (smooth — Catmull-Rom spline)
+      if (validPts.length > 1) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        // simple polyline through valid points (gaps skipped)
+        let started = false;
+        points.forEach(pt => {
+          if (!pt) { started = false; return; }
+          if (!started) { ctx.moveTo(pt.x, pt.y); started = true; }
+          else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.stroke();
+      }
+
+      // Dots — normal events small, major/signature highlighted
+      finishes.forEach((v, i) => {
+        if (v === null) return;
+        const x = PAD.l + i * xStep;
+        const y = yFor(v);
+        const evtInfo = allEvents[i];
+        const isSpecial = evtInfo && (evtInfo.isMajor || evtInfo.type === 'Major' || evtInfo.type === 'Signature');
+
+        if (isSpecial) {
+          // Gold ring dot for majors/sigs
+          ctx.beginPath();
+          ctx.arc(x, y, 5, 0, Math.PI * 2);
+          ctx.fillStyle = '#fff8e1';
+          ctx.fill();
+          ctx.strokeStyle = '#b5860d';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#b5860d';
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+        }
+      });
+
+      // X-axis event tick marks — short lines at each event, label first/last
+      ctx.fillStyle = '#b0aea8';
+      ctx.font = '8px Helvetica Neue, Arial, sans-serif';
+      allEvents.forEach((evt, i) => {
+        const x = PAD.l + i * xStep;
+        ctx.strokeStyle = '#e0ddd6';
+        ctx.lineWidth = 0.5;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(x, H - PAD.b);
+        ctx.lineTo(x, H - PAD.b + 3);
+        ctx.stroke();
+        // Label first and last only
+        if (i === 0) {
+          ctx.textAlign = 'left';
+          ctx.fillText(abbrevEvt(evt.name), x, H - 2);
+        } else if (i === n - 1) {
+          ctx.textAlign = 'right';
+          ctx.fillText(abbrevEvt(evt.name), x, H - 2);
+        }
+      });
+    });
+  });
 }
 
 </script>
