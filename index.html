@@ -532,7 +532,6 @@
       <!-- Legend -->
       <div class="form-legend-row" style="margin-top:10px;">
         <div class="form-legend-item"><div class="form-legend-swatch" style="background:#2d6a4f;"></div><span>Season avg baseline</span></div>
-        <div class="form-legend-item"><div style="width:10px;height:10px;border-radius:50%;background:#b5860d;"></div><span>Major / Signature event</span></div>
         <div class="form-legend-item"><div class="form-pip" style="background:#d4edda;color:#2d6a4f;width:16px;height:16px;">1</div><span style="margin-left:2px;">Top 3 finish</span></div>
         <div class="form-legend-item"><div class="form-pip" style="background:#fff3cd;color:#856404;width:16px;height:16px;">5</div><span style="margin-left:2px;">Mid finish</span></div>
         <div class="form-legend-item"><div class="form-pip" style="background:#f8d7da;color:#842029;width:16px;height:16px;">9</div><span style="margin-left:2px;">Bottom finish</span></div>
@@ -3118,27 +3117,11 @@ function renderFormDashboard() {
         const x = PAD.l + i * xStep;
         const y = yFor(v);
         const evtInfo = allEvents[i];
-        const isSpecial = evtInfo && (evtInfo.isMajor || evtInfo.type === 'Major' || evtInfo.type === 'Signature');
 
-        if (isSpecial) {
-          // Gold ring dot for majors/sigs
-          ctx.beginPath();
-          ctx.arc(x, y, 5, 0, Math.PI * 2);
-          ctx.fillStyle = '#fff8e1';
-          ctx.fill();
-          ctx.strokeStyle = '#b5860d';
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.arc(x, y, 2.5, 0, Math.PI * 2);
-          ctx.fillStyle = '#b5860d';
-          ctx.fill();
-        } else {
-          ctx.beginPath();
-          ctx.arc(x, y, 2.5, 0, Math.PI * 2);
-          ctx.fillStyle = color;
-          ctx.fill();
-        }
+        ctx.beginPath();
+        ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
       });
 
       // X-axis event tick marks — short lines at each event, label first/last
