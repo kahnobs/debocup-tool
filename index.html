@@ -137,7 +137,11 @@
   .form-pip { width:18px; height:18px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-family:'Helvetica Neue',Arial,sans-serif; font-size:9px; font-weight:700; }
   .form-pip-null { background:var(--bg2); color:var(--text3); }
   .form-empty { font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--text2); padding:2rem; text-align:center; }
-  .form-legend-row { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--text2); align-items:center; }
+  .form-vol-row { display:flex; align-items:center; gap:8px; margin-top:6px; padding-top:6px; border-top:0.5px solid var(--border); }
+  .form-vol-label { font-family:'Helvetica Neue',Arial,sans-serif; font-size:10px; color:var(--text3); flex-shrink:0; width:62px; }
+  .form-vol-track { flex:1; height:5px; background:var(--bg3); border-radius:3px; overflow:hidden; }
+  .form-vol-bar { height:100%; border-radius:3px; transition:width 0.3s; }
+  .form-vol-value { font-family:'Helvetica Neue',Arial,sans-serif; font-size:10px; font-weight:700; flex-shrink:0; width:28px; text-align:right; }
   .form-legend-item { display:flex; align-items:center; gap:5px; }
   .form-legend-swatch { width:24px; height:3px; border-radius:2px; }
   .trend-pill { font-family: 'Helvetica Neue',Arial,sans-serif; font-size:12px; font-weight:600; padding:4px 10px; border:0.5px solid var(--border2); border-radius:20px; background:var(--bg); color:var(--text2); cursor:pointer; transition:all 0.12s; }
@@ -543,6 +547,8 @@
         <button class="form-pill active" id="fpill-hot" onclick="setFormSort('hot',this)">🔥 Hottest → Coldest</button>
         <button class="form-pill" id="fpill-form" onclick="setFormSort('form',this)">Recent avg</button>
         <button class="form-pill" id="fpill-season" onclick="setFormSort('season',this)">Season avg</button>
+        <button class="form-pill" id="fpill-consistent" onclick="setFormSort('consistent',this)">Most consistent</button>
+        <button class="form-pill" id="fpill-volatile" onclick="setFormSort('volatile',this)">Most volatile</button>
         <button class="form-pill" id="fpill-name" onclick="setFormSort('name',this)">Name</button>
       </div>
 
@@ -2907,6 +2913,22 @@ function formTrend(delta) {
   return               { label:'→ Steady', color:'var(--gold)' };
 }
 
+function formStdDev(played) {
+  if (played.length < 2) return null;
+  const avg = played.reduce((a,b)=>a+b,0) / played.length;
+  const variance = played.reduce((sum,v) => sum + (v-avg)**2, 0) / played.length;
+  return Math.sqrt(variance);
+}
+
+// Returns {color, label} based on stdev relative to league max
+function formVolatilityStyle(stdev, maxStdev) {
+  if (stdev === null) return { color:'var(--text3)', label:'—' };
+  const pct = stdev / (maxStdev || 1);
+  if (pct < 0.33) return { color:'var(--green)',  label:'Consistent' };
+  if (pct < 0.66) return { color:'var(--gold)',   label:'Mixed' };
+  return                  { color:'var(--red)',    label:'Volatile' };
+}
+
 function formPipStyle(v, nPlayers) {
   if (v === null) return null;
   const pct = (v - 1) / (nPlayers - 1 || 1);
@@ -2942,9 +2964,11 @@ function renderFormDashboard() {
   // Sort players
   function sortVal(p) {
     const pd = playerData[p];
-    if (_formSort === 'hot')    return -formHeatDelta(pd.played, recentWindow);
-    if (_formSort === 'form')   return formRecentAvg(pd.played, recentWindow) ?? 999;
-    if (_formSort === 'season') return formSeasonAvg(pd.played) ?? 999;
+    if (_formSort === 'hot')        return -formHeatDelta(pd.played, recentWindow);
+    if (_formSort === 'form')       return formRecentAvg(pd.played, recentWindow) ?? 999;
+    if (_formSort === 'season')     return formSeasonAvg(pd.played) ?? 999;
+    if (_formSort === 'consistent') return formStdDev(pd.played) ?? 999;
+    if (_formSort === 'volatile')   return -(formStdDev(pd.played) ?? 0);
     return p.toLowerCase();
   }
   const sorted = [...players].sort((a,b) => {
@@ -2954,6 +2978,10 @@ function renderFormDashboard() {
 
   grid.innerHTML = '';
   const dpr = window.devicePixelRatio || 1;
+
+  // Pre-compute stdev across all players to normalise volatility bar widths
+  const allStdevs = players.map(p => formStdDev(playerData[p].played)).filter(v => v !== null);
+  const maxStdev  = allStdevs.length ? Math.max(...allStdevs) : 1;
 
   sorted.forEach((p, idx) => {
     const pd = playerData[p];
@@ -2971,6 +2999,14 @@ function renderFormDashboard() {
     // Wins & top 3s
     const wins  = played.filter(v => v === 1).length;
     const top3s = played.filter(v => v <= 3).length;
+
+    // Volatility
+    const stdev    = formStdDev(played);
+    const volStyle = formVolatilityStyle(stdev, maxStdev);
+    const volBarPct = stdev !== null ? Math.round((stdev / maxStdev) * 100) : 0;
+    const volBarColor = stdev !== null
+      ? (volBarPct < 33 ? '#2d6a4f' : volBarPct < 66 ? '#b5860d' : '#9b2226')
+      : 'var(--border)';
 
     // Card
     const card = document.createElement('div');
@@ -2992,7 +3028,7 @@ function renderFormDashboard() {
             Δ <span style="font-weight:700;color:${trend.color};">${deltaStr}</span>
           </div>
           <div class="form-player-sub" style="margin-top:1px;">
-            ${wins} win${wins!==1?'s':''} &nbsp;·&nbsp; ${top3s} top-3${top3s!==1?'s':''}  &nbsp;·&nbsp; ${played.length} events
+            ${wins} win${wins!==1?'s':''} &nbsp;·&nbsp; ${top3s} top-3${top3s!==1?'s':''} &nbsp;·&nbsp; ${played.length} events
           </div>
         </div>
         <div class="form-status" style="color:${trend.color};">${trend.label}</div>
@@ -3003,6 +3039,13 @@ function renderFormDashboard() {
       <div class="form-pips-row">
         <span class="form-pips-label">Last ${lastNPlayed.length} played:</span>
         <div class="form-pips">${pipHtml}</div>
+      </div>
+      <div class="form-vol-row">
+        <span class="form-vol-label">Volatility</span>
+        <div class="form-vol-track">
+          <div class="form-vol-bar" style="width:${volBarPct}%;background:${volBarColor};"></div>
+        </div>
+        <span class="form-vol-value" style="color:${volBarColor};">σ ${stdev !== null ? stdev.toFixed(1) : '—'}</span>
       </div>`;
 
     grid.appendChild(card);
