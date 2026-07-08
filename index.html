@@ -1248,7 +1248,7 @@ function generatePreviewPost() {
   if (!lockTime) { alert('Please enter the lineup lock time.'); return; }
 
   const lockStr = lockTime.toLowerCase().includes('tomorrow') ? lockTime : 'tomorrow at ' + lockTime;
-  const courseShort = course.split(' ')[0] || tournament.split(' ')[0];
+  const courseShort = course || tournament;
   const deboLine = deboChamp ? ('Defending DEBO champion: ' + deboChamp + '. Can they repeat?') : '';
   const postParts = [week + ' — ' + tournament + '. ⛳', 'Lineups lock ' + lockStr + '.', 'DEBO Cup Winners at ' + courseShort + ':', pastWinnersText, deboLine, 'debocup.com'].filter(Boolean);
   const post = postParts.join('\n\n');
