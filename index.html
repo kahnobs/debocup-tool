@@ -1211,10 +1211,13 @@ function findPastWinners(tournamentName) {
     const evtName = normalizeEventName(r['Event'] || '');
     const season = r['Season'] || r['Date']?.substring(0,4) || '';
 
-    // Check if any keyword matches the event name,
+    // Check if ALL keywords match the event name — a single shared keyword is too
+    // loose (e.g. "Genesis Scottish Open" was matching "Genesis Invitational" on
+    // "genesis" alone). Sponsor-name mismatches are still handled by the
+    // substring fallback below.
     // OR if the stored event name is contained within the tournament name (e.g. "byron nelson" in "the cj cup byron nelson")
     // OR if the tournament name is contained within the stored event name
-    const keywordMatch = keywords.length > 0 && keywords.some(kw => evtName.includes(kw));
+    const keywordMatch = keywords.length > 0 && keywords.every(kw => evtName.includes(kw));
     const substringMatch = evtName.length > 4 && (normTournament.includes(evtName) || evtName.includes(normTournament));
     if (!keywordMatch && !substringMatch) continue;
 
