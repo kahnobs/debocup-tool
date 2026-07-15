@@ -1178,17 +1178,62 @@ function normalizeEventName(s) {
     .trim();
 }
 
+// Resolve any event/tournament name to a stable canonical key, so the SCHEDULE's
+// spelling and the RESULTS-history spelling of the same event land on the same
+// key even when they differ (e.g. schedule "The Open" vs results "Open", or
+// schedule "FedEx St. Jude Championship" vs results "St Jude Championship").
+//
+// Majors and notoriously ambiguous events are matched explicitly first. This is
+// what fixes The Open: the results sheet stores it as the bare word "Open", which
+// must map to the same key as schedule "The Open"/"The Open Championship"/"British
+// Open" WITHOUT ever colliding with "US Open", "Scottish Open", "Canadian Open",
+// etc. Everything else falls back to a sponsor-agnostic significant-token key.
+const EVENT_CONNECTOR_WORDS = new Set(['the','of','at','in','a','an','and','by','pres','presented','de']);
+const EVENT_ULTRA_GENERIC = new Set(['championship','open','classic','invitational','tour']);
+function canonicalEventKey(rawName) {
+  const n = normalizeEventName(rawName);
+  if (!n) return '';
+  // The Open Championship (a.k.a. British Open) — stored various ways incl. bare "Open".
+  if (n === 'open'
+      || /(^|\s)british open(\s|$)/.test(n)
+      || /(^|\s)the open(\s|$)/.test(n)
+      || /(^|\s)open championship(\s|$)/.test(n)
+      || /(^|\s)\d+(st|nd|rd|th) open(\s|$)/.test(n))
+    return 'major:the-open';
+  if (/(^|\s)(u s open|us open|united states open)(\s|$)/.test(n)) return 'major:us-open';
+  if (/(^|\s)pga championship(\s|$)/.test(n)) return 'major:pga-championship';
+  if (/(^|\s)masters(\s|$)/.test(n)) return 'major:masters';
+  // General events: signature from significant tokens (drops connector words only).
+  const tokens = n.split(' ').filter(w => w && !EVENT_CONNECTOR_WORDS.has(w));
+  return 'sig:' + tokens.sort().join(' ');
+}
+// True when two significant-token keys refer to the same event, tolerating
+// sponsor prefixes (e.g. {st,jude,championship} ⊆ {fedex,st,jude,championship}).
+// Requires the overlap to include at least one distinguishing (non-generic) token
+// so two unrelated "… Championship"/"… Open" names can't match on the suffix alone.
+function eventTokenKeysMatch(keyA, keyB) {
+  const a = new Set(keyA.slice(4).split(' ').filter(Boolean));
+  const b = new Set(keyB.slice(4).split(' ').filter(Boolean));
+  if (!a.size || !b.size) return false;
+  const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+  for (const t of small) if (!large.has(t)) return false;
+  for (const t of small) if (!EVENT_ULTRA_GENERIC.has(t)) return true;
+  return false;
+}
+// True when a schedule tournament name and a results-history event name are the
+// same event. Exact canonical-key equality first; sponsor-tolerant token match next.
+function eventsAreSame(scheduleName, resultEventName) {
+  const tk = canonicalEventKey(scheduleName);
+  const ek = canonicalEventKey(resultEventName);
+  if (!tk || !ek) return false;
+  if (tk === ek) return true;
+  if (tk.startsWith('sig:') && ek.startsWith('sig:')) return eventTokenKeysMatch(tk, ek);
+  return false;
+}
+
 function findPastWinners(tournamentName) {
   if (!ALL_RESULTS.length) return [];
-
-  // Build keyword set from tournament name for fuzzy matching
-  const stopWords = new Set(['the','of','at','in','a','an','open','championship','classic','invitational','pres','by','presented','tournament','memorial','challenge','cup']);
-  const keywords = normalizeEventName(tournamentName)
-    .split(/\s+/)
-    .filter(w => w.length > 2 && !stopWords.has(w));
-
-  // Also build a normalized version of the full tournament name for substring matching
-  const normTournament = normalizeEventName(tournamentName);
+  if (!canonicalEventKey(tournamentName)) return [];
 
   // Find event winners from RESULTS tab — finish 1, grouped by season
   const winners = [];
@@ -1208,20 +1253,9 @@ function findPastWinners(tournamentName) {
     // Support multiple possible finish column names
     const finishVal = r['Finish'] ?? r['Place'] ?? r['finish'] ?? r['place'] ?? '';
     if (parseInt(finishVal) !== 1) continue;
-    const evtName = normalizeEventName(r['Event'] || '');
+    if (!eventsAreSame(tournamentName, r['Event'] || '')) continue;
+
     const season = r['Season'] || r['Date']?.substring(0,4) || '';
-
-    // Check if ALL keywords match the event name — a single shared keyword is too
-    // loose (e.g. "Genesis Scottish Open" was matching "Genesis Invitational" on
-    // "genesis" alone). Sponsor-name mismatches are still handled by the
-    // substring fallback below.
-    // OR if the stored event name is contained within the tournament name (e.g. "byron nelson" in "the cj cup byron nelson")
-    // OR if the tournament name is contained within the stored event name
-    const keywordMatch = keywords.length > 0 && keywords.every(kw => evtName.includes(kw));
-    const substringMatch = evtName.length > 4 && (normTournament.includes(evtName) || evtName.includes(normTournament));
-    if (!keywordMatch && !substringMatch) continue;
-
-    // Extract year from season string
     const yearMatch = season.match(/\d{4}/);
     const year = yearMatch ? yearMatch[0] : season;
 
@@ -1248,7 +1282,7 @@ function generatePreviewPost() {
   if (!lockTime) { alert('Please enter the lineup lock time.'); return; }
 
   const lockStr = lockTime.toLowerCase().includes('tomorrow') ? lockTime : 'tomorrow at ' + lockTime;
-  const courseShort = course || tournament;
+  const courseShort = course.split(' ')[0] || tournament.split(' ')[0];
   const deboLine = deboChamp ? ('Defending DEBO champion: ' + deboChamp + '. Can they repeat?') : '';
   const postParts = [week + ' — ' + tournament + '. ⛳', 'Lineups lock ' + lockStr + '.', 'DEBO Cup Winners at ' + courseShort + ':', pastWinnersText, deboLine, 'debocup.com'].filter(Boolean);
   const post = postParts.join('\n\n');
