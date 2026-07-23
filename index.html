@@ -639,6 +639,44 @@ function setStatus(state, msg) {
   document.getElementById('status-text').textContent = msg;
 }
 
+// ── DraftKings special-character name repair ───────────────────────────────
+// DK's CSV export now downgrades accented names to plain ASCII and drops a '?'
+// where the lost letter was (e.g. "Rasmus Højgaard" -> "Rasmus H?jgaard",
+// "Fabián Gómez" -> "Fabi?n G?mez"). The '?' marks the EXACT position of the
+// missing character, so we treat it as a single-character wildcard and match
+// against this list of correctly-spelled names. To fix a newly-affected
+// player, just add their proper spelling below — matching is accent-insensitive
+// so you never have to worry about how DK mangled it.
+const SPECIAL_NAME_FIXES = [
+  "Rasmus Højgaard", "Nicolai Højgaard", "Ludvig Åberg", "Thorbjørn Olesen",
+  "Joaquín Niemann", "Sebastián Muñoz", "Emiliano Grillo", "Fabián Gómez",
+  "Christiaan Bezuidenhout", "Víctor Pérez", "Adrián Otaegui", "Jorge Campillo",
+  "Alejandro Cañizares", "Matthieu Pavon", "Rafael Cabrera Bello", "Nacho Elvira",
+  "Renato Paratore", "Julien Guerrier", "Clément Sordet", "Romain Langasque",
+  "Sami Välimäki", "Matías Domínguez",
+];
+
+// Strip accents/diacritics to plain lowercase ASCII (for comparison only).
+function _stripAccents(s) {
+  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+// If `name` contains one or more '?', try to recover the real spelling by
+// wildcard-matching it against SPECIAL_NAME_FIXES. Returns the clean name only
+// when exactly one candidate fits; otherwise returns the name unchanged so we
+// never guess wrong.
+function repairDkName(name) {
+  if (!name || name.indexOf('?') === -1) return name;
+  const target = _stripAccents(name); // '?' is not a diacritic, so it survives
+  const pattern = '^' + target.split('').map(ch =>
+    ch === '?' ? '.' : ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  ).join('') + '$';
+  let re;
+  try { re = new RegExp(pattern); } catch (e) { return name; }
+  const hits = SPECIAL_NAME_FIXES.filter(c => re.test(_stripAccents(c)));
+  return hits.length === 1 ? hits[0] : name;
+}
+
 function parseCSVText(text) {
   const lines = text.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
@@ -785,7 +823,7 @@ function parseDKCSV(text) {
     // Parse lineup: "G Brooks Koepka G Corey Conners ..." → "Brooks Koepka, Corey Conners, ..."
     const lineupRaw = (r['Lineup'] || '').trim();
     const lineup = lineupRaw
-      ? lineupRaw.split(/\s+G\s+/).map(s => s.replace(/^G\s+/, '').trim()).filter(Boolean).join(', ')
+      ? lineupRaw.split(/\s+G\s+/).map(s => repairDkName(s.replace(/^G\s+/, '').trim())).filter(Boolean).join(', ')
       : '';
     return { dk, rank, points, matched, lineup };
   });
@@ -1623,6 +1661,29 @@ Return only valid JSON, nothing else.`
         const golferName = row.querySelector('td:first-child')?.textContent.trim();
         // Try to match by last name or full name
         const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+        // '?'-tolerant comparisons: if a DK name still carries a '?' where an
+        // accented letter was lost, treat '?' on either side as a wildcard that
+        // matches any single character. (Names are usually already repaired at
+        // import; this is the backstop for players not in SPECIAL_NAME_FIXES.)
+        const weq = (a, b) => {
+          if (a.length !== b.length) return false;
+          for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i] && a[i] !== '?' && b[i] !== '?') return false;
+          }
+          return true;
+        };
+        const wchar = (a, b) => a === b || a === '?' || b === '?';
+        const winc = (hay, needle) => {
+          if (!needle.length || needle.length > hay.length) return false;
+          for (let i = 0; i <= hay.length - needle.length; i++) {
+            let ok = true;
+            for (let j = 0; j < needle.length; j++) {
+              if (!wchar(hay[i + j], needle[j])) { ok = false; break; }
+            }
+            if (ok) return true;
+          }
+          return false;
+        };
         const dgGolfer = (() => {
           const rowName = norm(golferName || '');
           if (!rowName) return null;
@@ -1641,19 +1702,17 @@ Return only valid JSON, nothing else.`
             let score = 0;
 
             // Exact full name match — highest priority
-            if (dgName === rowName) { score = 100; }
+            if (weq(dgName, rowName)) { score = 100; }
             // Last name exact + first name exact
-            else if (dgLast === rowLast && dgFirst === rowFirst) { score = 90; }
+            else if (weq(dgLast, rowLast) && weq(dgFirst, rowFirst)) { score = 90; }
             // Last name exact + first name starts with same letter
-            else if (dgLast === rowLast && dgFirst[0] === rowFirst[0]) { score = 70; }
+            else if (weq(dgLast, rowLast) && wchar(dgFirst[0], rowFirst[0])) { score = 70; }
             // Last name exact only (risky for common names)
-            else if (dgLast === rowLast && rowLast.length > 3) { score = 40; }
-            // Accent-normalized full name
-            else if (dgName === rowName) { score = 85; }
+            else if (weq(dgLast, rowLast) && rowLast.length > 3) { score = 40; }
             // First 5 chars of last name (Echavarria variants)
-            else if (dgLast.length > 4 && rowLast.length > 4 && dgLast.substring(0,5) === rowLast.substring(0,5)) { score = 35; }
+            else if (dgLast.length > 4 && rowLast.length > 4 && weq(dgLast.substring(0,5), rowLast.substring(0,5))) { score = 35; }
             // Contains match
-            else if (dgName.includes(rowLast) || rowName.includes(dgLast)) { score = 30; }
+            else if (winc(dgName, rowLast) || winc(rowName, dgLast)) { score = 30; }
 
             if (score > bestScore) { bestScore = score; best = g; }
           }
