@@ -657,8 +657,23 @@ const SPECIAL_NAME_FIXES = [
 ];
 
 // Strip accents/diacritics to plain lowercase ASCII (for comparison only).
+// NFD decomposition handles most accents (\u00e9 -> e + combining mark), but several
+// Nordic/Slavic letters are single code points that DON'T decompose \u2014 notably
+// \u00f8 (H\u00f8jgaard), \u00e6, \u0153, \u0142, \u0111, \u00fe, \u00df. Those slip through NFD and cause the accented
+// spelling ("H\u00f8jgaard") to fail to match the plain-ASCII spelling ("Hojgaard")
+// that DataGolf shows in its screenshots. Fold them explicitly.
 function _stripAccents(s) {
-  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  return (s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip combining diacritics
+    .replace(/[\u00f8\u00d8]/g, 'o')
+    .replace(/[\u00e6\u00c6]/g, 'ae')
+    .replace(/[\u0153\u0152]/g, 'oe')
+    .replace(/[\u0142\u0141]/g, 'l')
+    .replace(/[\u0111\u0110\u00f0\u00d0]/g, 'd')
+    .replace(/[\u00fe\u00de]/g, 'th')
+    .replace(/\u00df/g, 'ss')
+    .replace(/[\u0131\u0130]/g, 'i')
+    .toLowerCase().trim();
 }
 
 // If `name` contains one or more '?', try to recover the real spelling by
@@ -1659,8 +1674,11 @@ Return only valid JSON, nothing else.`
       let matched = 0;
       tableRows.forEach(row => {
         const golferName = row.querySelector('td:first-child')?.textContent.trim();
-        // Try to match by last name or full name
-        const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+        // Try to match by last name or full name.
+        // Reuse the shared folder so non-decomposing letters (\u00f8, \u00e6, \u0142, \u2026) are
+        // normalized the same way here as during DK CSV import \u2014 otherwise
+        // "H\u00f8jgaard" (table) never matches "Hojgaard" (DataGolf screenshot).
+        const norm = _stripAccents;
         // '?'-tolerant comparisons: if a DK name still carries a '?' where an
         // accented letter was lost, treat '?' on either side as a wildcard that
         // matches any single character. (Names are usually already repaired at
