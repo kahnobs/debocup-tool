@@ -614,6 +614,14 @@ const CSV_RESULTS   = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/g
 const CSV_TIES      = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=1984755411`;
 
 const DC_PTS = {1:25,2:15,3:10,4:7,5:5,6:4,7:3,8:2,9:1,10:1};
+
+// Tied finishes split the points of the positions they occupy,
+// e.g. two tied for 3rd split 3rd+4th: (10+7)/2 = 8.5 each.
+function tieSplitDcPts(finish, count) {
+  let sum = 0;
+  for (let i = 0; i < count; i++) sum += DC_PTS[finish + i] || 0;
+  return sum / count;
+}
 const PRIZE  = {1:10,2:5,3:3,4:2};
 
 // DK username → DEBO Cup player name mapping
@@ -915,36 +923,53 @@ function addRow(player='', finish='', dk='', lineup='') {
     <input type="number" class="dk-inp" placeholder="pts" value="${dk}" step="0.5">
     <input type="hidden" class="lineup-inp" value="${lineup.replace(/"/g,'&quot;')}">
     <span class="dc-out">—</span><span class="pr-out">—</span>
-    <button class="remove-btn" onclick="this.closest('.result-row').remove()">×</button>
+    <button class="remove-btn" onclick="this.closest('.result-row').remove();recalcAllRows()">×</button>
   `;
-  div.querySelector('.fin-inp').addEventListener('input', () => calcRow(div));
-  if (finish) calcRow(div);
+  div.querySelector('.fin-inp').addEventListener('input', recalcAllRows);
   document.getElementById('rows-container').appendChild(div);
+  if (finish) recalcAllRows();
 }
 
-function calcRow(row) {
-  const fin = parseInt(row.querySelector('.fin-inp').value);
-  const dcEl = row.querySelector('.dc-out');
-  const prEl = row.querySelector('.pr-out');
-  if (!isNaN(fin)) {
-    dcEl.textContent = DC_PTS[fin] !== undefined ? DC_PTS[fin] : '0';
-    const isMajor = document.getElementById('evt-type').value === 'Major';
-    const prizeAmt = (PRIZE[fin] || 0) + (fin === 1 && isMajor ? 20 : 0);
-    prEl.textContent = prizeAmt > 0 ? '$'+prizeAmt : '—';
-    dcEl.style.color = fin <= 3 ? '#2d6a4f' : '#6b6a64';
-    dcEl.style.fontWeight = fin <= 3 ? '700' : '600';
-  } else { dcEl.textContent = '—'; prEl.textContent = '—'; }
+// Recalculates every row's DC pts so tied finishes split points correctly
+function recalcAllRows() {
+  const rowEls = Array.from(document.querySelectorAll('#rows-container .result-row'));
+  const counts = {};
+  rowEls.forEach(el => {
+    const fin = parseInt(el.querySelector('.fin-inp').value);
+    if (!isNaN(fin)) counts[fin] = (counts[fin] || 0) + 1;
+  });
+  rowEls.forEach(el => {
+    const fin = parseInt(el.querySelector('.fin-inp').value);
+    const dcEl = el.querySelector('.dc-out');
+    const prEl = el.querySelector('.pr-out');
+    if (!isNaN(fin)) {
+      const pts = tieSplitDcPts(fin, counts[fin] || 1);
+      dcEl.textContent = Number.isInteger(pts) ? pts : pts.toFixed(1);
+      const isMajor = document.getElementById('evt-type').value === 'Major';
+      const prizeAmt = (PRIZE[fin] || 0) + (fin === 1 && isMajor ? 20 : 0);
+      prEl.textContent = prizeAmt > 0 ? '$'+prizeAmt : '—';
+      dcEl.style.color = fin <= 3 ? '#2d6a4f' : '#6b6a64';
+      dcEl.style.fontWeight = fin <= 3 ? '700' : '600';
+    } else { dcEl.textContent = '—'; prEl.textContent = '—'; }
+  });
 }
+
+// Back-compat alias (recalculates all rows, since a tie affects other rows too)
+function calcRow() { recalcAllRows(); }
 
 function getRows() {
-  return Array.from(document.querySelectorAll('#rows-container .result-row')).map(row => ({
+  const rows = Array.from(document.querySelectorAll('#rows-container .result-row')).map(row => ({
     player: row.querySelector('.p-sel').value,
     finish: parseInt(row.querySelector('.fin-inp').value),
     dk:     parseFloat(row.querySelector('.dk-inp').value) || 0,
     lineup: row.querySelector('.lineup-inp')?.value || '',
-    dcPts:  DC_PTS[parseInt(row.querySelector('.fin-inp').value)] || 0,
+    dcPts:  0, // set below (tie-aware)
     prize:  (PRIZE[parseInt(row.querySelector('.fin-inp').value)] || 0) + (parseInt(row.querySelector('.fin-inp').value) === 1 && document.getElementById('evt-type').value === 'Major' ? 20 : 0),
   })).filter(r => r.player && !isNaN(r.finish));
+  const counts = {};
+  rows.forEach(r => counts[r.finish] = (counts[r.finish] || 0) + 1);
+  rows.forEach(r => { r.dcPts = tieSplitDcPts(r.finish, counts[r.finish]); });
+  return rows;
 }
 
 // ── Calculate & generate ───────────────────────────────────────────────────
@@ -2151,15 +2176,16 @@ async function pushToSheets() {
     byFinish[r.finish].push(r.player);
   });
 
-  // Find ties (2+ players at same position)
+  // Find ties (2+ players at same position) — n-way ties split n positions' points
   Object.entries(byFinish).forEach(([finish, players]) => {
     if (players.length < 2) return;
     const pos = parseInt(finish);
-    const pts1 = DC_PTS_MAP[pos] || 0;
-    const pts2 = DC_PTS_MAP[pos + 1] || 0;
-    const avg = (pts1 + pts2) / 2;
-    const adj = parseFloat((avg - pts1).toFixed(2));
-    if (adj === 0) return; // no adjustment needed (both positions worth 0)
+    const n = players.length;
+    let sum = 0;
+    for (let i = 0; i < n; i++) sum += DC_PTS_MAP[pos + i] || 0;
+    const avg = sum / n;
+    const adj = parseFloat((avg - (DC_PTS_MAP[pos] || 0)).toFixed(2));
+    if (adj === 0) return; // no adjustment needed (positions worth the same)
     players.forEach(player => {
       tieRows.push(['2026 Regular', evtName, player, adj]);
     });
@@ -2177,7 +2203,7 @@ async function pushToSheets() {
     return;
   }
 
-  doWrite({ resultRows, summaryRow });
+  doWrite({ resultRows, summaryRow, tieRows });
 }
 
 async function doWrite({ resultRows, summaryRow, tieRows = [] }) {
