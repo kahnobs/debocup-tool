@@ -288,6 +288,18 @@
       </div>
       <div id="itab-recap" style="display:none;">
         <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:12px;">Auto-generated from your results. Edit the one-liner before posting.</p>
+        <div class="field-group" style="margin-bottom:16px;">
+          <label>Claude API key — needed for the Cut Sweat screenshot readers</label>
+          <input type="password" id="claude-api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+          <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+            <button class="copy-btn" onclick="saveClaudeKey()">Save key</button>
+            <button class="copy-btn" onclick="clearClaudeKey()">Clear</button>
+            <span id="claude-key-status" style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;"></span>
+          </div>
+          <p style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-top:8px;">
+            Stored only in this browser's localStorage on this device. Never sent anywhere except api.anthropic.com, and never written into this file — so it is safe to keep publishing the page.
+          </p>
+        </div>
         <div class="field-group" style="margin-bottom:12px;">
           <label>One-liner (optional — edit before posting)</label>
           <input type="text" id="recap-oneliner" placeholder="e.g. Brad claims his first career DEBO Cup victory." oninput="updateRecapTemplate()">
@@ -2076,6 +2088,32 @@ function downloadCutSweatImage() {
   link.href = canvas.toDataURL('image/png');
   link.click();
 }
+
+// -- Claude API key storage (used by the Cut Sweat screenshot readers) --
+function saveClaudeKey() {
+  const el = document.getElementById('claude-api-key');
+  const st = document.getElementById('claude-key-status');
+  const v = (el.value || '').trim();
+  if (!v) { st.textContent = 'Enter a key first.'; return; }
+  localStorage.setItem('claude_api_key', v);
+  st.textContent = 'Saved. Cut Sweat uploads will work now.';
+}
+function clearClaudeKey() {
+  localStorage.removeItem('claude_api_key');
+  document.getElementById('claude-api-key').value = '';
+  document.getElementById('claude-key-status').textContent = 'Cleared.';
+}
+function loadClaudeKey() {
+  const el = document.getElementById('claude-api-key');
+  if (!el) return;
+  const k = localStorage.getItem('claude_api_key');
+  if (k) {
+    el.value = k;
+    document.getElementById('claude-key-status').textContent = 'Key loaded from this browser.';
+  }
+}
+document.addEventListener('DOMContentLoaded', loadClaudeKey);
+
 
 // ── Recap template ─────────────────────────────────────────────
 
