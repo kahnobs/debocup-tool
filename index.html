@@ -682,18 +682,28 @@ const SPECIAL_NAME_FIXES = [
 // \u00f8 (H\u00f8jgaard), \u00e6, \u0153, \u0142, \u0111, \u00fe, \u00df. Those slip through NFD and cause the accented
 // spelling ("H\u00f8jgaard") to fail to match the plain-ASCII spelling ("Hojgaard")
 // that DataGolf shows in its screenshots. Fold them explicitly.
-function _stripAccents(s) {
+const _ASCII_FOLD = {
+  '\u00f8':'o',  '\u00d8':'O',  '\u00e6':'ae', '\u00c6':'AE',
+  '\u0153':'oe', '\u0152':'OE', '\u0142':'l',  '\u0141':'L',
+  '\u0111':'d',  '\u0110':'D',  '\u00f0':'d',  '\u00d0':'D',
+  '\u00fe':'th', '\u00de':'TH', '\u00df':'ss',
+  '\u0131':'i',  '\u0130':'I',
+};
+
+// Fold every non-ASCII letter to its plain-English equivalent, PRESERVING case.
+// Used two ways: _stripAccents() lowercases the result for comparisons, and
+// repairDkName() returns it as the display spelling. DataGolf writes names in
+// plain ASCII ("Rasmus Hojgaard", "Thorbjorn Olesen"), so emitting the same
+// spelling keeps the golfer list we hand it byte-identical to what it expects.
+function _foldToAscii(s) {
   return (s || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip combining diacritics
-    .replace(/[\u00f8\u00d8]/g, 'o')
-    .replace(/[\u00e6\u00c6]/g, 'ae')
-    .replace(/[\u0153\u0152]/g, 'oe')
-    .replace(/[\u0142\u0141]/g, 'l')
-    .replace(/[\u0111\u0110\u00f0\u00d0]/g, 'd')
-    .replace(/[\u00fe\u00de]/g, 'th')
-    .replace(/\u00df/g, 'ss')
-    .replace(/[\u0131\u0130]/g, 'i')
-    .toLowerCase().trim();
+    .replace(/[\u00f8\u00d8\u00e6\u00c6\u0153\u0152\u0142\u0141\u0111\u0110\u00f0\u00d0\u00fe\u00de\u00df\u0131\u0130]/g,
+             ch => _ASCII_FOLD[ch]);
+}
+
+function _stripAccents(s) {
+  return _foldToAscii(s).toLowerCase().trim();
 }
 
 // If `name` contains one or more '?', try to recover the real spelling by
@@ -701,7 +711,7 @@ function _stripAccents(s) {
 // when exactly one candidate fits; otherwise returns the name unchanged so we
 // never guess wrong.
 function repairDkName(name) {
-  if (!name || name.indexOf('?') === -1) return name;
+  if (!name || name.indexOf('?') === -1) return _foldToAscii(name);
   const target = _stripAccents(name); // '?' is not a diacritic, so it survives
   const pattern = '^' + target.split('').map(ch =>
     ch === '?' ? '.' : ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -709,7 +719,7 @@ function repairDkName(name) {
   let re;
   try { re = new RegExp(pattern); } catch (e) { return name; }
   const hits = SPECIAL_NAME_FIXES.filter(c => re.test(_stripAccents(c)));
-  return hits.length === 1 ? hits[0] : name;
+  return hits.length === 1 ? _foldToAscii(hits[0]) : _foldToAscii(name);
 }
 
 function parseCSVText(text) {
