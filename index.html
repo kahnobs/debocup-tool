@@ -24,6 +24,12 @@
   .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--text3); }
   .status-dot.ok { background: #2d6a4f; }
   .status-dot.err { background: #9b2226; }
+  .status-dot.warn { background: #c05c00; }
+  .settings-note { font-size: 12px; color: var(--text2); font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.5; margin-bottom: 8px; }
+  .settings-table td { font-size: 13px; vertical-align: top; }
+  .settings-table td.note { font-size: 11px; color: var(--text2); }
+  .color-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; border: 0.5px solid var(--border2); }
+  .data-warn { margin: -0.5rem 0 1rem; padding: 10px 14px; border-radius: var(--radius); background: #fff4e5; border: 0.5px solid #f0c68a; color: #7a4a1e; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; line-height: 1.6; }
   .status-dot.loading { background: #b5860d; animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
@@ -32,7 +38,7 @@
   .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .field-group { display: flex; flex-direction: column; gap: 5px; }
   .field-group label { font-size: 12px; color: var(--text2); font-family: 'Helvetica Neue',Arial,sans-serif; }
-  input[type="text"], input[type="date"], input[type="number"], select { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 13px; padding: 7px 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text); width: 100%; outline: none; }
+  input[type="text"], input[type="date"], input[type="number"], input[type="password"], select { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 13px; padding: 7px 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text); width: 100%; outline: none; }
   input:focus, select:focus { border-color: var(--text); }
 
   /* Drop zone */
@@ -75,8 +81,8 @@
   .calc-btn:hover { background: #333; }
   .calc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .top-tabs { display: flex; border-bottom: 0.5px solid var(--border); margin-bottom: 1.5rem; }
-  .top-tab { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; padding: 8px 18px; border: none; border-bottom: 2px solid transparent; background: none; color: var(--text2); cursor: pointer; margin-bottom: -1px; }
+  .top-tabs { display: flex; flex-wrap: wrap; border-bottom: 0.5px solid var(--border); margin-bottom: 1.5rem; }
+  .top-tab { font-family: 'Helvetica Neue',Arial,sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; padding: 8px 14px; border: none; border-bottom: 2px solid transparent; background: none; color: var(--text2); cursor: pointer; margin-bottom: -1px; }
   .top-tab.active { color: var(--text); border-bottom-color: var(--text); }
 
   .inner-tabs { display: flex; gap: 4px; margin-bottom: 1rem; flex-wrap: wrap; }
@@ -199,6 +205,7 @@
     <span id="status-text">Loading live data from Google Sheets...</span>
     <button class="refresh-btn" onclick="loadAll()">Refresh</button>
   </div>
+  <div class="data-warn" id="data-warn" style="display:none;"></div>
 
   <div class="top-tabs">
     <button class="top-tab active" onclick="showTopTab('enter',this)">Enter results</button>
@@ -210,6 +217,7 @@
     <button class="top-tab" onclick="showTopTab('trend',this)">Standings trend</button>
     <button class="top-tab" onclick="showTopTab('usage',this)">Golfer usage</button>
     <button class="top-tab" onclick="showTopTab('form',this)">Form dashboard</button>
+    <button class="top-tab" onclick="showTopTab('settings',this)">Settings</button>
   </div>
 
   <!-- ENTER RESULTS TAB -->
@@ -227,7 +235,7 @@
         <div class="field-group"><label>Tournament name</label><input type="text" id="evt-name" placeholder="e.g. Texas Children's Houston Open"></div>
         <div class="field-group"><label>Event date</label><input type="date" id="evt-date"></div>
         <div class="field-group"><label>Event type</label>
-          <select id="evt-type"><option value="Regular">Regular</option><option value="Signature">Signature</option><option value="Major">Major</option></select>
+          <select id="evt-type" onchange="recalcAllRows()"><option value="Regular">Regular</option><option value="Signature">Signature</option><option value="Major">Major</option><option value="Playoffs">Playoffs</option><option value="Fall">Fall</option></select>
         </div>
         <div class="field-group"><label>Week # of season</label><input type="number" id="evt-week" placeholder="e.g. 11" min="1" max="33"></div>
         <div class="field-group" style="grid-column:1/-1;"><label>PGA Tour winner (optional — for recap)</label><input type="text" id="pga-winner" placeholder="e.g. Matt Fitzpatrick"></div>
@@ -265,11 +273,13 @@
     <div id="output-area" style="display:none;">
 
       <div class="auth-bar">
-        <div class="auth-dot" id="auth-dot"></div>
-        <span id="auth-text">Not signed in to Google</span>
-        <button class="auth-btn" id="auth-btn" onclick="handleAuthClick()">Sign in with Google</button>
+        <div class="auth-dot"></div>
+        <span class="auth-text">Not signed in to Google</span>
+        <button class="auth-btn" onclick="handleAuthClick()">Sign in with Google</button>
       </div>
-      <button class="push-btn" id="push-btn" onclick="pushToSheets()" disabled>Push to Google Sheets</button>
+      <button class="push-btn" id="push-btn" onclick="pushToSheets()">Push to Google Sheets</button>
+      <div class="data-warn" id="dup-panel" style="display:none;margin:0 0 1rem;"></div>
+      <button class="copy-btn undo-push-btn" onclick="undoLastPush()" style="display:none;margin:-0.25rem 0 1rem;"></button>
 
       <div class="inner-tabs">
         <button class="inner-tab active" onclick="showInnerTab('standings',this)">Updated standings</button>
@@ -288,18 +298,6 @@
       </div>
       <div id="itab-recap" style="display:none;">
         <p style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-bottom:12px;">Auto-generated from your results. Edit the one-liner before posting.</p>
-        <div class="field-group" style="margin-bottom:16px;">
-          <label>Claude API key — needed for the Cut Sweat screenshot readers</label>
-          <input type="password" id="claude-api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
-          <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
-            <button class="copy-btn" onclick="saveClaudeKey()">Save key</button>
-            <button class="copy-btn" onclick="clearClaudeKey()">Clear</button>
-            <span id="claude-key-status" style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;"></span>
-          </div>
-          <p style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-top:8px;">
-            Stored only in this browser's localStorage on this device. Never sent anywhere except api.anthropic.com, and never written into this file — so it is safe to keep publishing the page.
-          </p>
-        </div>
         <div class="field-group" style="margin-bottom:12px;">
           <label>One-liner (optional — edit before posting)</label>
           <input type="text" id="recap-oneliner" placeholder="e.g. Brad claims his first career DEBO Cup victory." oninput="updateRecapTemplate()">
@@ -389,6 +387,11 @@
 
   <!-- CUT SWEAT TAB -->
   <div id="top-cutsweat" style="display:none;">
+
+    <div class="data-warn" id="claude-key-notice" style="display:none;margin:0 0 1.25rem;">
+      No Claude API key saved in this browser — the screenshot readers in Step 2 need one.
+      <a href="#" onclick="showTopTab('settings', document.querySelector('.top-tab[onclick*=settings]'));return false;" style="color:inherit;font-weight:600;">Add it in Settings →</a>
+    </div>
 
     <div class="card">
       <div class="section-label">Step 1 — Golfer list for DataGolf</div>
@@ -484,7 +487,7 @@
   <!-- HISTORY TAB -->
   <div id="top-history" style="display:none;">
     <div class="card" style="padding:0.75rem;">
-      <div class="section-label" style="margin-bottom:12px;">2026 season results — live from Google Sheets</div>
+      <div class="section-label" style="margin-bottom:12px;"><span data-season>2026</span> season results — live from Google Sheets</div>
       <div id="history-content"><span style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">Loading...</span></div>
     </div>
   </div>
@@ -527,7 +530,7 @@
       <!-- Header row -->
       <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:4px;">
         <div>
-          <div class="section-label" style="margin-bottom:3px;">Player form dashboard — 2026 season</div>
+          <div class="section-label" style="margin-bottom:3px;">Player form dashboard — <span data-season>2026</span> season</div>
           <p style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;color:var(--text3);line-height:1.5;">Hot / Cold based on last 5 events vs. season average. Dashed line = season baseline.</p>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
@@ -615,17 +618,115 @@
     </div>
   </div>
 
+  <!-- SETTINGS TAB -->
+  <div id="top-settings" style="display:none;">
+
+    <div class="card">
+      <div class="section-label">League settings</div>
+      <p class="settings-note" id="settings-source"></p>
+      <table class="standings-table settings-table" id="settings-tbl"></table>
+      <p class="settings-note" style="margin-top:10px;">To change a rule, edit the <strong>Settings</strong> tab of the
+        <a href="https://docs.google.com/spreadsheets/d/10Oa-LOeo7lyR5fkruCUun4A9Ofr_w2NLn0xfZEn_T0g/edit" target="_blank" rel="noopener">DEBO CUP GOLF LEAGUE sheet</a>, then press Refresh at the top of this page.</p>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Roster — PLAYERS tab</div>
+      <p class="settings-note">Add a player by adding a row to PLAYERS (DK Username, Player, plus optional Color, Active and DK Aliases). Set Active to FALSE to hide someone from the dropdowns. Usernames you assign during an import are saved back here when you push.</p>
+      <table class="standings-table settings-table" id="roster-tbl"></table>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Google sheet</div>
+      <div class="auth-bar">
+        <div class="auth-dot"></div>
+        <span class="auth-text">Not signed in to Google</span>
+        <button class="auth-btn" onclick="handleAuthClick()">Sign in with Google</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button class="copy-btn" onclick="setupSheet()">Set up sheet (Settings tab + PLAYERS columns)</button>
+        <button class="copy-btn undo-push-btn" onclick="undoLastPush()" style="display:none;"></button>
+      </div>
+      <p class="settings-note" id="setup-status" style="margin-top:8px;"></p>
+      <p class="settings-note">Setup is safe to run more than once: it only adds what's missing and never changes existing values.</p>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Claude API key</div>
+      <div class="field-group">
+        <label>Needed for the Cut Sweat screenshot readers</label>
+        <input type="password" id="claude-api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+          <button class="copy-btn" onclick="saveClaudeKey()">Save key</button>
+          <button class="copy-btn" onclick="clearClaudeKey()">Clear</button>
+          <span id="claude-key-status" style="font-size:12px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;"></span>
+        </div>
+        <p class="settings-note" style="margin-top:8px;">
+          Stored only in this browser's localStorage on this device. Never sent anywhere except api.anthropic.com, and never written into this file — so it is safe to keep publishing the page.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
 </div>
 <script>
+// ── Sheet wiring ───────────────────────────────────────────────────────────
+// The one place the golf sheet is identified. Tab gids are stable even if a
+// tab is renamed; the Settings tab is read by name.
 const REAL_SHEET_ID = '10Oa-LOeo7lyR5fkruCUun4A9Ofr_w2NLn0xfZEn_T0g';
-const CSV_SCHEDULE = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=66689929`;
-const CSV_PLAYERS  = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=437546101`;
-const GID_PLAYERS  = '437546101';
-const CSV_STANDINGS = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=494949199`;
-const CSV_RESULTS   = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=0`;
-const CSV_TIES      = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=1984755411`;
+const GID = { players: 1437546101, standings: 494949199, results: 0, ties: 1984755411, schedule: 66689929, summaries: 739435645 };
+const TAB = { settings: 'Settings', players: 'PLAYERS', results: 'RESULTS', summaries: 'EVENT SUMMARIES', ties: 'TIES' };
+function gvizUrl({ gid, sheet }) {
+  const base = `https://docs.google.com/spreadsheets/d/${REAL_SHEET_ID}/gviz/tq?tqx=out:csv&headers=1`;
+  return sheet ? `${base}&sheet=${encodeURIComponent(sheet)}` : `${base}&gid=${gid}`;
+}
+const CSV_STANDINGS = gvizUrl({ gid: GID.standings });
+const CSV_RESULTS   = gvizUrl({ gid: GID.results });
+const CSV_TIES      = gvizUrl({ gid: GID.ties });
+const CSV_PLAYERS   = gvizUrl({ gid: GID.players });
+const CSV_SETTINGS  = gvizUrl({ sheet: TAB.settings });
 
-const DC_PTS = {1:25,2:15,3:10,4:7,5:5,6:4,7:3,8:2,9:1,10:1};
+// ── League settings ────────────────────────────────────────────────────────
+// Defaults = the 2026 rules. Every value can be overridden from the sheet's
+// Settings tab (Setting | Value | Notes), so next season's rules are cell
+// edits, not code changes. See SETTINGS_SPEC for the keys.
+const DEFAULT_CONFIG = {
+  season: '',                 // blank → derived from the schedule / results
+  seasonLabel: '',            // blank → "<season> Regular"
+  weeks: 33,
+  scheduleTab: '',            // blank → the tab with gid GID.schedule
+  dcPoints: [25,15,10,7,5,4,3,2,1,1],
+  prizes: [10,5,3,2],
+  majorBonus: 20,
+  seasonBonuses: [350,150,60],
+  buyIn: '',
+};
+const SETTINGS_SPEC = [
+  // [sheet label, config key, type, note]
+  ['Season', 'season', 'text', 'Year of the current season, e.g. 2027. Leave blank to use the year of the latest schedule/results date.'],
+  ['Season Label', 'seasonLabel', 'text', 'Written to the Season column of RESULTS, e.g. "2027 Regular". Blank = "<Season> Regular".'],
+  ['Weeks', 'weeks', 'int', 'Number of weekly events in the season.'],
+  ['Schedule Tab', 'scheduleTab', 'text', 'Name of the tab holding this season\'s schedule (Week # | Start Date | Tournament | Course | ...). Blank = 2026 SCHEDULE.'],
+  ['DC Points', 'dcPoints', 'list', 'DEBO Cup points for 1st, 2nd, 3rd, ... separated by commas. Ties split the points of the places they cover.'],
+  ['Weekly Prizes', 'prizes', 'list', 'Weekly prize $ for 1st, 2nd, 3rd, ... separated by commas. Ties split the money of the places they cover.'],
+  ['Major Winner Bonus', 'majorBonus', 'num', 'Extra $ to the weekly winner of a Major (split if tied for 1st).'],
+  ['Season Bonuses', 'seasonBonuses', 'list', 'End-of-season $ for 1st, 2nd, 3rd, ... in the final standings.'],
+  ['Buy-in', 'buyIn', 'text', 'Per-player buy-in (for reference / the website).'],
+];
+let CONFIG = { ...DEFAULT_CONFIG };
+let SETTINGS_SOURCE = 'defaults'; // 'sheet' once the Settings tab is read
+
+// Rebuilt from CONFIG by applyConfig(); 1-indexed by finish place.
+let DC_PTS = {};
+let PRIZE = {};
+function applyConfig() {
+  DC_PTS = {}; CONFIG.dcPoints.forEach((v, i) => DC_PTS[i + 1] = v);
+  PRIZE  = {}; CONFIG.prizes.forEach((v, i) => PRIZE[i + 1] = v);
+}
+applyConfig();
+function seasonYear()  { return CONFIG.season || String(new Date().getFullYear()); }
+function seasonLabel() { return CONFIG.seasonLabel || `${seasonYear()} Regular`; }
+function inSeason(r)   { return (r['Season'] || '').includes(seasonYear()); }
 
 // Tied finishes split the points of the positions they occupy,
 // e.g. two tied for 3rd split 3rd+4th: (10+7)/2 = 8.5 each.
@@ -634,19 +735,43 @@ function tieSplitDcPts(finish, count) {
   for (let i = 0; i < count; i++) sum += DC_PTS[finish + i] || 0;
   return sum / count;
 }
-const PRIZE  = {1:10,2:5,3:3,4:2};
+// Prize money splits the same way, and a tie for 1st at a Major splits the
+// Major bonus too. e.g. two tied for 1st: ($10+$5)/2 = $7.50 each.
+function tieSplitPrize(finish, count, isMajor) {
+  let sum = 0;
+  for (let i = 0; i < count; i++) sum += PRIZE[finish + i] || 0;
+  if (finish === 1 && isMajor) sum += CONFIG.majorBonus;
+  return Math.round(sum / count * 100) / 100;
+}
+function fmtMoney(v) { return '$' + (Number.isInteger(v) ? v : v.toFixed(2)); }
+function fmtPts(v)   { return Number.isInteger(v) ? String(v) : String(Math.round(v * 10) / 10); }
 
-// DK username → DEBO Cup player name mapping
-// Update this map as new players join or usernames change
-// DK username map — built dynamically from PLAYERS sheet (column A=DK_Username, column B=Player)
-// Fallback hardcoded map used if sheet can't be reached
-const DK_USERNAME_MAP_FALLBACK = {
-  'mknob87': 'MK', 'WoodrowP': 'Woody', 'atan76': 'Anth', 'DrLoomis72': 'Loomis',
-  'bhscott96': 'Brad', 'decamp26': 'DeCampli', 'zach_mathias': 'Zach', 'croth20': 'Colin',
-  'Swicky92': 'Kyle', 'stepdaddystew69': 'Stew', 'natewiley35': 'Wiley',
-  'b10boariu': 'Broc', 'bluke2424': 'B Luke',
-};
-let DK_USERNAME_MAP = {...DK_USERNAME_MAP_FALLBACK};
+// 1 → "1st", 2 → "2nd", 11 → "11th", 21 → "21st", 22 → "22nd"
+function ordinal(n) {
+  const v = Math.abs(parseInt(n)) % 100;
+  const s = (v >= 11 && v <= 13) ? 'th' : ({1:'st',2:'nd',3:'rd'}[v % 10] || 'th');
+  return n + s;
+}
+
+// Escape text going into innerHTML (DK usernames, lineups, sheet values).
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// DK multi-entry names look like "mknob87 (1/2)" — strip the "(n/m)" suffix.
+function cleanDkName(s) { return (s || '').replace(/\s*\(\d+\s*\/\s*\d+\)\s*$/, '').trim(); }
+
+// ── Roster (PLAYERS tab) ───────────────────────────────────────────────────
+// PLAYERS: DK Username | Player | Name | ... | Color | Active | DK Aliases
+// Adding a player = adding a row. Color, Active and DK Aliases are optional.
+let ROSTER = [];            // [{player, dk, aliases:[], color, active}]
+let DK_USERNAME_MAP = {};   // lower-cased DK username/alias → player
+let PLAYER_COLORS = {};     // player → hex color from the sheet
+function rebuildUsernameMap() {
+  DK_USERNAME_MAP = {};
+  ROSTER.forEach(p => [p.dk, ...p.aliases].forEach(u => { if (u) DK_USERNAME_MAP[cleanDkName(u).toLowerCase()] = p.player; }));
+}
+function lookupDk(username) { return DK_USERNAME_MAP[cleanDkName(username).toLowerCase()] || null; }
 
 let CURRENT_STANDINGS = {};
 let PLAYERS = [];
@@ -722,19 +847,33 @@ function repairDkName(name) {
   return hits.length === 1 ? _foldToAscii(hits[0]) : _foldToAscii(name);
 }
 
-function parseCSVText(text) {
-  const lines = text.trim().split('\n');
-  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
-  return lines.slice(1).map(line => {
-    const vals = []; let cur = '', inQ = false;
-    for (const ch of line) {
-      if (ch === '"') inQ = !inQ;
-      else if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+// RFC-4180 CSV → array of rows (handles quoted commas, quoted newlines and "" escapes).
+function parseCSVRows(text) {
+  const rows = []; let row = [], cur = '', inQ = false;
+  text = (text || '').replace(/^﻿/, '');
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i+1] === '"') { cur += '"'; i++; } else inQ = false; }
       else cur += ch;
-    }
-    vals.push(cur.trim());
+    } else if (ch === '"') inQ = true;
+    else if (ch === ',') { row.push(cur); cur = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i+1] === '\n') i++;
+      row.push(cur); rows.push(row); row = []; cur = '';
+    } else cur += ch;
+  }
+  if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter(r => r.some(v => v.trim() !== ''));
+}
+
+function parseCSVText(text) {
+  const rows = parseCSVRows(text);
+  if (!rows.length) return [];
+  const headers = rows[0].map(h => h.trim());
+  return rows.slice(1).map(vals => {
     const obj = {};
-    headers.forEach((h,i) => obj[h] = (vals[i]||'').replace(/^"|"$/g,'').trim());
+    headers.forEach((h,i) => { if (h && !(h in obj)) obj[h] = (vals[i]||'').trim(); });
     return obj;
   });
 }
@@ -747,7 +886,7 @@ async function fetchCSV(url) {
     clearTimeout(timer);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
-    if (!text.includes(',')) throw new Error('Unexpected response');
+    if (/^\s*</.test(text)) throw new Error('Unexpected response (sheet not public?)');
     return text;
   } catch(e) {
     clearTimeout(timer);
@@ -755,86 +894,186 @@ async function fetchCSV(url) {
   }
 }
 
-async function loadAll() {
-  setStatus('loading', 'Loading live data from Google Sheets...');
-  // Always load fallback first so UI is immediately interactive
-  useFallback();
-  document.getElementById('calc-btn').disabled = false;
-  let standingsOk = false, resultsOk = false;
-
-  try {
-    const text = await fetchCSV(CSV_STANDINGS);
-    const rows = parseCSVText(text);
-    CURRENT_STANDINGS = {}; PLAYERS = [];
-    // Reset username map and rebuild from sheet
-    DK_USERNAME_MAP = {};
-    rows.forEach(r => {
-      const p = r['Player'] || r['player'];
-      if (!p) return;
-      CURRENT_STANDINGS[p] = {
-        pts:    parseFloat(r['DC_Points']||r['DC Points']||0)||0,
-        prize:  parseFloat((r['Prize_$_Earned']||r['Prize $ Earned']||'0').toString().replace(/[$,]/g,''))||0,
-        wins:   parseInt(r['Wins']||0)||0,
-        top3:   parseInt(r['Top_3s']||r['Top 3s']||0)||0,
-        events: parseInt(r['Events_Played']||r['Events Played']||0)||0,
-      };
-      PLAYERS.push(p);
-      // Build DK username map from DK_Username column
-      const dk = r['DK_Username'] || r['DK Username'] || '';
-      if (dk) DK_USERNAME_MAP[dk] = p;
-    });
-    if (!PLAYERS.length) throw new Error('No players');
-    // If no usernames loaded from sheet, fall back to hardcoded
-    if (Object.keys(DK_USERNAME_MAP).length === 0) DK_USERNAME_MAP = {...DK_USERNAME_MAP_FALLBACK};
-    rebuildSelects();
-    renderLiveStandings();
-    standingsOk = true;
-  } catch(e) { useFallback(); }
-
-  try {
-    const [resultsText, tiesText] = await Promise.all([
-      fetchCSV(CSV_RESULTS),
-      fetchCSV(CSV_TIES).catch(() => null)
-    ]);
-    ALL_RESULTS = parseCSVText(resultsText);
-    ALL_TIES = tiesText ? parseCSVText(tiesText) : [];
-    renderHistory();
-    resultsOk = true;
-  } catch(e) {
-    document.getElementById('history-content').innerHTML =
-      `<p style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">Results feed unavailable.</p>`;
-  }
-
-  if (standingsOk && resultsOk)
-    setStatus('ok', `Live data loaded — ${PLAYERS.length} players · ${new Date().toLocaleTimeString()}`);
-  else if (standingsOk)
-    setStatus('ok', `Standings loaded (results unavailable) · ${new Date().toLocaleTimeString()}`);
-  else
-    setStatus('err', 'Could not reach Google Sheets — using fallback standings. Check sheet is public.');
-
-  document.getElementById('calc-btn').disabled = false;
-  setTimeout(loadSchedule, 100);
+// Non-fatal data problems, shown in a banner under the status bar so a stale
+// or partial load is never silent.
+let DATA_WARNINGS = [];
+function renderDataWarnings() {
+  const el = document.getElementById('data-warn');
+  if (!el) return;
+  el.style.display = DATA_WARNINGS.length ? '' : 'none';
+  el.innerHTML = DATA_WARNINGS.map(w => '⚠ ' + esc(w)).join('<br>');
 }
 
-function useFallback() {
-  CURRENT_STANDINGS = {
-    'Anth':     {pts:116,  prize:41, wins:3, top3:6,  events:10},
-    'MK':       {pts:96,   prize:29, wins:1, top3:4,  events:10},
-    'DeCampli': {pts:91,   prize:26, wins:1, top3:3,  events:9},
-    'Wiley':    {pts:73,   prize:21, wins:1, top3:4,  events:10},
-    'Kyle':     {pts:62.5, prize:15, wins:1, top3:2,  events:10},
-    'Woody':    {pts:61.5, prize:17, wins:1, top3:2,  events:10},
-    'Zach':     {pts:55,   prize:15, wins:1, top3:2,  events:9},
-    'Brad':     {pts:53,   prize:12, wins:0, top3:2,  events:10},
-    'Broc':     {pts:51,   prize:11, wins:0, top3:3,  events:10},
-    'Stew':     {pts:35,   prize:10, wins:1, top3:1,  events:9},
-    'Colin':    {pts:34,   prize:3,  wins:0, top3:1,  events:9},
-    'B Luke':   {pts:0,    prize:0,  wins:0, top3:0,  events:0},
-  };
-  PLAYERS = Object.keys(CURRENT_STANDINGS);
+// Settings tab → CONFIG. Expects columns "Setting" and "Value".
+function parseSettings(text) {
+  const rows = parseCSVText(text);
+  if (!rows.length || !('Setting' in rows[0]) || !('Value' in rows[0])) return null;
+  const cfg = { ...DEFAULT_CONFIG };
+  const byLabel = {};
+  rows.forEach(r => byLabel[(r['Setting'] || '').trim().toLowerCase()] = (r['Value'] || '').trim());
+  SETTINGS_SPEC.forEach(([label, key, type]) => {
+    const raw = byLabel[label.toLowerCase()];
+    if (raw === undefined || raw === '') return;
+    if (type === 'list') {
+      const arr = raw.split(/[,;\s]+/).map(v => parseFloat(v.replace(/[$]/g, ''))).filter(v => !isNaN(v));
+      if (arr.length) cfg[key] = arr;
+    } else if (type === 'int' || type === 'num') {
+      const v = parseFloat(raw.replace(/[$,]/g, ''));
+      if (!isNaN(v)) cfg[key] = type === 'int' ? Math.round(v) : v;
+    } else cfg[key] = raw;
+  });
+  return cfg;
+}
+
+// PLAYERS tab → ROSTER.
+function parseRoster(text) {
+  return parseCSVText(text).map(r => {
+    const player = (r['Player'] || '').trim();
+    if (!player) return null;
+    const activeRaw = (r['Active'] ?? '').toString().trim().toLowerCase();
+    return {
+      player,
+      dk: (r['DK Username'] || r['DK_Username'] || '').trim(),
+      aliases: (r['DK Aliases'] || '').split(/[,;]/).map(s => s.trim()).filter(Boolean),
+      color: /^#[0-9a-f]{6}$/i.test((r['Color'] || '').trim()) ? r['Color'].trim() : '',
+      active: !['false', 'no', 'n', '0', 'inactive'].includes(activeRaw),
+    };
+  }).filter(Boolean);
+}
+
+function parseDateAny(s) {
+  if (!s) return 0;
+  const mdy = String(s).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (mdy) return new Date(mdy[3], mdy[1]-1, mdy[2]).getTime();
+  const iso = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(iso[1], iso[2]-1, iso[3]).getTime();
+  return new Date(s).getTime() || 0;
+}
+
+// Season = Settings "Season", else the year of the first dated schedule row,
+// else the year of the most recent RESULTS row.
+function deriveSeason() {
+  if (CONFIG.season) return CONFIG.season;
+  const schedYears = SCHEDULE_DATA.map(r => parseDateAny(r['Start Date'])).filter(Boolean).map(t => new Date(t).getFullYear());
+  if (schedYears.length) return String(Math.min(...schedYears));
+  const resTimes = ALL_RESULTS.map(r => parseDateAny(r['Date'])).filter(Boolean);
+  if (resTimes.length) return String(new Date(Math.max(...resTimes)).getFullYear());
+  return String(new Date().getFullYear());
+}
+
+// Season standings computed straight from RESULTS + TIES — used only when the
+// CURRENT STANDINGS tab can't be read. Matches the sheet's formulas for 2026.
+function standingsFromResults() {
+  const s = {};
+  ALL_RESULTS.filter(r => inSeason(r) && r['Player']).forEach(r => {
+    const p = r['Player'], f = parseInt(r['Finish']);
+    if (!s[p]) s[p] = { pts: 0, prize: 0, wins: 0, top3: 0, events: 0 };
+    s[p].events += 1;
+    if (!isNaN(f)) {
+      s[p].pts += DC_PTS[f] || 0;
+      if (f === 1) s[p].wins += 1;
+      if (f <= 3) s[p].top3 += 1;
+    }
+    s[p].prize += parseFloat(String(r['Prize_$'] || '0').replace(/[$,]/g, '')) || 0;
+  });
+  ALL_TIES.forEach(t => {
+    const v = Object.values(t);
+    if (!String(v[0] || '').includes(seasonYear())) return;
+    const adj = parseFloat(v[3]) || 0;
+    if (s[v[2]]) s[v[2]].pts += adj;
+  });
+  return s;
+}
+
+function parseStandings(text) {
+  const out = {};
+  parseCSVText(text).forEach(r => {
+    const p = r['Player'] || r['player'];
+    if (!p) return;
+    out[p] = {
+      pts:    parseFloat(r['DC_Points']||r['DC Points']||0)||0,
+      prize:  parseFloat((r['Prize_$_Earned']||r['Prize $ Earned']||'0').toString().replace(/[$,]/g,''))||0,
+      wins:   parseInt(r['Wins']||0)||0,
+      top3:   parseInt(r['Top_3s']||r['Top 3s']||0)||0,
+      events: parseInt(r['Events_Played']||r['Events Played']||0)||0,
+    };
+  });
+  return out;
+}
+
+// Players offered in the dropdowns: everyone in the standings plus every
+// active roster player (so a new signup appears before their first event).
+function rebuildPlayerList() {
+  const list = Object.keys(CURRENT_STANDINGS);
+  ROSTER.filter(p => p.active).forEach(p => { if (!list.includes(p.player)) list.push(p.player); });
+  PLAYERS = list;
+  PLAYER_COLORS = {};
+  ROSTER.forEach(p => { if (p.color) PLAYER_COLORS[p.player] = p.color; });
+}
+
+async function loadAll() {
+  setStatus('loading', 'Loading live data from Google Sheets...');
+  document.getElementById('calc-btn').disabled = false;
+  DATA_WARNINGS = [];
+  const get = url => fetchCSV(url).catch(e => { console.warn('fetch failed', url, e); return null; });
+  const [settingsText, playersText, standingsText, resultsText, tiesText] =
+    await Promise.all([get(CSV_SETTINGS), get(CSV_PLAYERS), get(CSV_STANDINGS), get(CSV_RESULTS), get(CSV_TIES)]);
+
+  // 1. Settings
+  const cfg = settingsText ? parseSettings(settingsText) : null;
+  if (cfg) { CONFIG = cfg; SETTINGS_SOURCE = 'sheet'; }
+  else {
+    CONFIG = { ...DEFAULT_CONFIG }; SETTINGS_SOURCE = 'defaults';
+    DATA_WARNINGS.push('No Settings tab found in the sheet — using the built-in 2026 rules. Open the Settings tab of this tool to create it.');
+  }
+  applyConfig();
+
+  // 2. Results + ties
+  ALL_RESULTS = resultsText ? parseCSVText(resultsText) : [];
+  ALL_TIES = tiesText ? parseCSVText(tiesText) : [];
+  if (!resultsText) DATA_WARNINGS.push('RESULTS tab could not be read — history, trend, usage and form tabs will be empty.');
+
+  // 3. Schedule (its tab can come from Settings), then the season
+  await loadSchedule();
+  CONFIG.season = deriveSeason();
+
+  // 4. Roster
+  ROSTER = playersText ? parseRoster(playersText) : [];
+  if (!ROSTER.length) DATA_WARNINGS.push('PLAYERS tab could not be read — DK usernames won\'t auto-match; assign them by hand.');
+  rebuildUsernameMap();
+
+  // 5. Standings — the sheet's CURRENT STANDINGS tab, or computed from RESULTS
+  const st = standingsText ? parseStandings(standingsText) : null;
+  if (st && Object.keys(st).length) CURRENT_STANDINGS = st;
+  else if (resultsText) {
+    CURRENT_STANDINGS = standingsFromResults();
+    DATA_WARNINGS.push('CURRENT STANDINGS tab could not be read — standings below are computed from RESULTS + TIES instead.');
+  } else {
+    CURRENT_STANDINGS = {};
+    DATA_WARNINGS.push('Could not reach Google Sheets — there are no standings to show. Check the sheet is shared "anyone with the link can view", then press Refresh.');
+  }
+  window.CURRENT_STANDINGS = CURRENT_STANDINGS;
+  rebuildPlayerList();
   rebuildSelects();
   renderLiveStandings();
-  document.getElementById('calc-btn').disabled = false;
+  renderHistory();
+  applySeasonLabels();
+  renderSettingsPanel();
+
+  const ok = resultsText && (st || standingsText);
+  if (ok && !DATA_WARNINGS.length)
+    setStatus('ok', `Live data loaded — ${seasonYear()} season · ${PLAYERS.length} players · ${new Date().toLocaleTimeString()}`);
+  else if (resultsText || standingsText)
+    setStatus('warn', `Loaded with ${DATA_WARNINGS.length} warning${DATA_WARNINGS.length===1?'':'s'} — ${seasonYear()} season · ${new Date().toLocaleTimeString()}`);
+  else
+    setStatus('err', 'Could not reach Google Sheets. Check the sheet is public, then press Refresh.');
+  renderDataWarnings();
+}
+
+// Put the current season / week count into the static labels.
+function applySeasonLabels() {
+  document.querySelectorAll('[data-season]').forEach(el => el.textContent = seasonYear());
+  ['evt-week', 'trend-weeks-custom'].forEach(id => { const el = document.getElementById(id); if (el) el.max = CONFIG.weeks; });
 }
 
 // ── DraftKings CSV Import ──────────────────────────────────────────────────
@@ -855,29 +1094,66 @@ function handleFile(file) {
   reader.readAsText(file);
 }
 
+// DK usernames assigned by hand in the import preview. They are saved to the
+// PLAYERS tab (DK Username, or DK Aliases if the player already has one) the
+// next time the tool writes to the sheet, so next week they match on their own.
+// newPlayers are nicknames created with "+ New player…" (added as PLAYERS rows).
+let PENDING_ROSTER = { links: {}, newPlayers: [] };
+
 function parseDKCSV(text) {
   const rows = parseCSVText(text);
   // Only keep rows with a valid Rank (actual contest entries)
   const entries = rows.filter(r => r['Rank'] && !isNaN(parseFloat(r['Rank'])));
 
   pendingImport = entries.map(r => {
-    const dk = (r['EntryName'] || '').trim();
+    const rawName = (r['EntryName'] || '').trim();
+    const dk = cleanDkName(rawName);
     const rank = parseFloat(r['Rank']);
     const points = parseFloat(r['Points'] || r['FPTS'] || 0);
-    const matched = DK_USERNAME_MAP[dk] || null;
+    const matched = lookupDk(dk);
     // Parse lineup: "G Brooks Koepka G Corey Conners ..." → "Brooks Koepka, Corey Conners, ..."
     const lineupRaw = (r['Lineup'] || '').trim();
     const lineup = lineupRaw
       ? lineupRaw.split(/\s+G\s+/).map(s => repairDkName(s.replace(/^G\s+/, '').trim())).filter(Boolean).join(', ')
       : '';
-    return { dk, rank, points, matched, lineup };
+    return { dk, rawName, rank, points, matched, autoMatched: !!matched, lineup, extra: false };
   });
+  markExtraEntries();
+  renderImportPreview();
+}
 
+// League rule is one entry per player. If a player somehow has several
+// ("name (1/2)", "name (2/2)"), only their best-ranked entry counts.
+function markExtraEntries() {
+  const seen = new Set();
+  [...pendingImport].sort((a,b) => a.rank - b.rank).forEach(r => {
+    r.extra = false;
+    if (!r.matched) return;
+    if (seen.has(r.matched)) r.extra = true; else seen.add(r.matched);
+  });
+}
+
+function assignImportRow(i, value) {
+  const r = pendingImport[i];
+  if (value === '__new__') {
+    const name = (prompt(`New league player for DK username "${r.dk}".\nEnter their nickname (as it should appear in standings):`) || '').trim();
+    if (!name) { renderImportPreview(); return; }
+    if (!PLAYERS.includes(name)) {
+      PLAYERS.push(name);
+      if (!PENDING_ROSTER.newPlayers.includes(name)) PENDING_ROSTER.newPlayers.push(name);
+      rebuildSelects();
+    }
+    value = name;
+  }
+  r.matched = value || null;
+  if (value) PENDING_ROSTER.links[r.dk] = value; else delete PENDING_ROSTER.links[r.dk];
+  markExtraEntries();
   renderImportPreview();
 }
 
 function renderImportPreview() {
   const unmatched = pendingImport.filter(r => !r.matched);
+  const extras = pendingImport.filter(r => r.extra);
   const html = `
     <table class="import-table">
       <thead><tr>
@@ -889,20 +1165,22 @@ function renderImportPreview() {
       </tr></thead>
       <tbody>
         ${pendingImport.map((r,i) => `
-          <tr>
-            <td><span class="rank-badge ${r.rank<=3?'rank-'+r.rank:''}">${r.rank}</span></td>
-            <td style="font-family:'Courier New',monospace;font-size:12px;">${r.dk}</td>
-            <td style="text-align:right;font-weight:600;">${r.points}</td>
+          <tr${r.extra ? ' style="opacity:0.45;"' : ''}>
+            <td><span class="rank-badge ${r.rank<=3?'rank-'+r.rank:''}">${esc(r.rank)}</span></td>
+            <td style="font-family:'Courier New',monospace;font-size:12px;">${esc(r.rawName)}</td>
+            <td style="text-align:right;font-weight:600;">${esc(r.points)}</td>
             <td>
-              ${r.matched
-                ? `<span class="match-ok">${r.matched}</span>`
-                : `<select onchange="pendingImport[${i}].matched=this.value" style="width:100%">
+              ${r.autoMatched
+                ? `<span class="match-ok">${esc(r.matched)}</span>`
+                : `<select onchange="assignImportRow(${i}, this.value)" style="width:100%">
                     <option value="">-- assign player --</option>
-                    ${PLAYERS.map(p=>`<option value="${p}">${p}</option>`).join('')}
+                    ${PLAYERS.map(p=>`<option value="${esc(p)}"${p===r.matched?' selected':''}>${esc(p)}</option>`).join('')}
+                    <option value="__new__">+ New player…</option>
                    </select>`
               }
+              ${r.extra ? '<div style="font-size:11px;color:var(--text2);">extra entry — not counted</div>' : ''}
             </td>
-            <td style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">${r.lineup||'—'}</td>
+            <td style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">${esc(r.lineup||'—')}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -911,23 +1189,27 @@ function renderImportPreview() {
   document.getElementById('import-table-wrap').innerHTML = html;
   document.getElementById('import-preview').style.display = 'block';
 
-  if (unmatched.length) {
-    document.getElementById('unmatched-warn').style.display = 'block';
-    document.getElementById('unmatched-warn').innerHTML =
-      `<strong>${unmatched.length} unmatched username${unmatched.length>1?'s':''}:</strong> ${unmatched.map(r=>r.dk).join(', ')} — assign them above, then confirm import. You can also add them permanently to the username map in the tool settings.`;
-  } else {
-    document.getElementById('unmatched-warn').style.display = 'none';
-  }
+  const warn = document.getElementById('unmatched-warn');
+  const notes = [];
+  if (unmatched.length)
+    notes.push(`<strong>${unmatched.length} unmatched username${unmatched.length>1?'s':''}:</strong> ${unmatched.map(r=>esc(r.dk)).join(', ')} — assign them above, then confirm import. Your picks are saved to the PLAYERS tab when you push, so they match automatically next week.`);
+  if (extras.length)
+    notes.push(`<strong>${extras.length} extra entr${extras.length>1?'ies':'y'}</strong> from a player with more than one entry — only each player's best entry counts, and the others are re-ranked around it.`);
+  warn.style.display = notes.length ? 'block' : 'none';
+  warn.innerHTML = notes.join('<br><br>');
 }
 
 function confirmImport() {
   // Clear existing rows
   document.getElementById('rows-container').innerHTML = '';
 
-  // Sort by rank and populate
-  const sorted = [...pendingImport].sort((a,b) => a.rank - b.rank);
+  // League finish = 1 + number of counted entries that ranked strictly better.
+  // Equals the DK rank when every entry counts, and keeps DK's ties.
+  const counted = pendingImport.filter(r => r.matched && !r.extra);
+  const sorted = [...counted].sort((a,b) => a.rank - b.rank);
   sorted.forEach(r => {
-    if (r.matched) addRow(r.matched, r.rank, r.points, r.lineup||'');
+    const finish = 1 + counted.filter(o => o.rank < r.rank).length;
+    addRow(r.matched, finish, r.points, r.lineup||'');
   });
 
   // Scroll to results section
@@ -940,10 +1222,10 @@ function addRow(player='', finish='', dk='', lineup='') {
   const div = document.createElement('div');
   div.className = 'result-row';
   div.innerHTML = `
-    <select class="p-sel"><option value="">-- player --</option>${PLAYERS.map(p=>`<option value="${p}"${p===player?' selected':''}>${p}</option>`).join('')}</select>
-    <input type="number" class="fin-inp" min="1" max="200" placeholder="1–100" value="${finish}">
-    <input type="number" class="dk-inp" placeholder="pts" value="${dk}" step="0.5">
-    <input type="hidden" class="lineup-inp" value="${lineup.replace(/"/g,'&quot;')}">
+    <select class="p-sel"><option value="">-- player --</option>${PLAYERS.map(p=>`<option value="${esc(p)}"${p===player?' selected':''}>${esc(p)}</option>`).join('')}</select>
+    <input type="number" class="fin-inp" min="1" max="200" placeholder="1–100" value="${esc(finish)}">
+    <input type="number" class="dk-inp" placeholder="pts" value="${esc(dk)}" step="0.5">
+    <input type="hidden" class="lineup-inp" value="${esc(lineup)}">
     <span class="dc-out">—</span><span class="pr-out">—</span>
     <button class="remove-btn" onclick="this.closest('.result-row').remove();recalcAllRows()">×</button>
   `;
@@ -952,7 +1234,9 @@ function addRow(player='', finish='', dk='', lineup='') {
   if (finish) recalcAllRows();
 }
 
-// Recalculates every row's DC pts so tied finishes split points correctly
+function isMajorSelected() { return document.getElementById('evt-type').value === 'Major'; }
+
+// Recalculates every row's DC pts and prize so tied finishes split both correctly
 function recalcAllRows() {
   const rowEls = Array.from(document.querySelectorAll('#rows-container .result-row'));
   const counts = {};
@@ -960,16 +1244,16 @@ function recalcAllRows() {
     const fin = parseInt(el.querySelector('.fin-inp').value);
     if (!isNaN(fin)) counts[fin] = (counts[fin] || 0) + 1;
   });
+  const isMajor = isMajorSelected();
   rowEls.forEach(el => {
     const fin = parseInt(el.querySelector('.fin-inp').value);
     const dcEl = el.querySelector('.dc-out');
     const prEl = el.querySelector('.pr-out');
     if (!isNaN(fin)) {
       const pts = tieSplitDcPts(fin, counts[fin] || 1);
-      dcEl.textContent = Number.isInteger(pts) ? pts : pts.toFixed(1);
-      const isMajor = document.getElementById('evt-type').value === 'Major';
-      const prizeAmt = (PRIZE[fin] || 0) + (fin === 1 && isMajor ? 20 : 0);
-      prEl.textContent = prizeAmt > 0 ? '$'+prizeAmt : '—';
+      dcEl.textContent = fmtPts(pts);
+      const prizeAmt = tieSplitPrize(fin, counts[fin] || 1, isMajor);
+      prEl.textContent = prizeAmt > 0 ? fmtMoney(prizeAmt) : '—';
       dcEl.style.color = fin <= 3 ? '#2d6a4f' : '#6b6a64';
       dcEl.style.fontWeight = fin <= 3 ? '700' : '600';
     } else { dcEl.textContent = '—'; prEl.textContent = '—'; }
@@ -986,12 +1270,41 @@ function getRows() {
     dk:     parseFloat(row.querySelector('.dk-inp').value) || 0,
     lineup: row.querySelector('.lineup-inp')?.value || '',
     dcPts:  0, // set below (tie-aware)
-    prize:  (PRIZE[parseInt(row.querySelector('.fin-inp').value)] || 0) + (parseInt(row.querySelector('.fin-inp').value) === 1 && document.getElementById('evt-type').value === 'Major' ? 20 : 0),
+    prize:  0, // set below (tie-aware)
   })).filter(r => r.player && !isNaN(r.finish));
   const counts = {};
   rows.forEach(r => counts[r.finish] = (counts[r.finish] || 0) + 1);
-  rows.forEach(r => { r.dcPts = tieSplitDcPts(r.finish, counts[r.finish]); });
+  const isMajor = isMajorSelected();
+  rows.forEach(r => {
+    r.dcPts = tieSplitDcPts(r.finish, counts[r.finish]);
+    r.prize = tieSplitPrize(r.finish, counts[r.finish], isMajor);
+  });
   return rows;
+}
+
+// Event_ID used in RESULTS / EVENT SUMMARIES, e.g. "2026 Regular__20260326__houston-open".
+function eventIdFor(evtName, dateStr) {
+  const slug = evtName.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+  return `${seasonLabel()}__${dateStr.replace(/-/g,'')}__${slug}`;
+}
+
+// Label for the end-of-season bonus column.
+function seasonBonusLabel(i) {
+  const amt = CONFIG.seasonBonuses[i] || 0;
+  if (!amt) return '<span style="color:var(--color-text-tertiary,#9e9d97);">—</span>';
+  const name = i === 0 ? 'champion' : i === 1 ? 'runner-up' : ordinal(i + 1) + ' place';
+  const color = ['#b5860d', '#6b6a64', '#7a4a1e'][i] || 'var(--text2)';
+  return `<span style="color:${color};${i===0?'font-weight:600;':''}">${fmtMoney(amt)} ${name}</span>`;
+}
+
+function standingsTableHtml(sorted, deltaFor) {
+  return `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Season $</th><th style="text-align:right">End of season bonus</th></tr></thead><tbody>` +
+    sorted.map(([p,s],i) => {
+      const delta = deltaFor ? deltaFor(p, i) : 0;
+      const dHtml = delta>0?` <span class="delta-up">▲${delta}</span>`:delta<0?` <span class="delta-dn">▼${Math.abs(delta)}</span>`:'';
+      const badge = i<3?['rank-1','rank-2','rank-3'][i]:'';
+      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${esc(p)}${dHtml}</td><td style="text-align:right;font-weight:600">${fmtPts(s.pts)}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">${fmtMoney(s.prize)}</td><td style="text-align:right;">${seasonBonusLabel(i)}</td></tr>`;
+    }).join('') + `</tbody>`;
 }
 
 // ── Calculate & generate ───────────────────────────────────────────────────
@@ -1002,10 +1315,13 @@ function calculate() {
   const evtName = document.getElementById('evt-name').value || 'Tournament';
   const evtDate = document.getElementById('evt-date').value || '';
   const evtType = document.getElementById('evt-type').value;
-  const evtWeek = document.getElementById('evt-week').value || '?';
+  const weekNum = parseInt(document.getElementById('evt-week').value);
+  const evtWeek = isNaN(weekNum) ? '?' : String(weekNum);
 
   rows.sort((a,b) => a.finish - b.finish);
-  const winner = rows.find(r => r.finish === 1);
+  const winners = rows.filter(r => r.finish === 1);
+  const winner = winners[0];
+  const winnerNames = winners.map(r => r.player).join(' & ');
   const top3 = rows.filter(r => r.finish <= 3);
 
   const newS = {};
@@ -1013,6 +1329,7 @@ function calculate() {
   for (const r of rows) {
     if (!newS[r.player]) newS[r.player] = {pts:0,prize:0,wins:0,top3:0,events:0};
     newS[r.player].pts += r.dcPts; newS[r.player].prize += r.prize; newS[r.player].events += 1;
+    // League rule: a tie for 1st is a full win for each (points and money are split).
     if (r.finish === 1) newS[r.player].wins += 1;
     if (r.finish <= 3) newS[r.player].top3 += 1;
   }
@@ -1021,49 +1338,45 @@ function calculate() {
   const sorted = Object.entries(newS).sort((a,b)=>b[1].pts-a[1].pts);
   const newRanks = sorted.map(e=>e[0]);
 
-  const SEASON_BONUS = [350, 150, 60];
-  document.getElementById('standings-tbl').innerHTML =
-    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Season $</th><th style="text-align:right">End of season bonus</th></tr></thead><tbody>` +
-    sorted.map(([p,s],i) => {
-      const delta = (oldRanks.indexOf(p)+1)-(i+1);
-      const dHtml = delta>0?` <span class="delta-up">▲${delta}</span>`:delta<0?` <span class="delta-dn">▼${Math.abs(delta)}</span>`:'';
-      const badge = i<3?['rank-1','rank-2','rank-3'][i]:'';
-      const bonus = SEASON_BONUS[i] || 0;
-      const bonusLabel = i===0 ? '<span style="color:#b5860d;font-weight:600;">$350 champion</span>' : i===1 ? '<span style="color:#6b6a64;">$150 runner-up</span>' : i===2 ? '<span style="color:#7a4a1e;">$60 third place</span>' : '<span style="color:var(--color-text-tertiary,#9e9d97);">—</span>';
-      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${p}${dHtml}</td><td style="text-align:right;font-weight:600">${s.pts}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">$${s.prize}</td><td style="text-align:right;">${bonusLabel}</td></tr>`;
-    }).join('') + `</tbody>`;
+  document.getElementById('standings-tbl').innerHTML = standingsTableHtml(sorted, (p, i) => {
+    const old = oldRanks.indexOf(p);
+    return old === -1 ? 0 : (old + 1) - (i + 1);
+  });
 
   const dateStr = evtDate || 'TBD';
-  const slug = evtName.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
-  const seasonId = `2026 Regular__${dateStr.replace(/-/g,'')}__${slug}`;
-  const podium = top3.map(r=>`${r.finish}${['st','nd','rd'][r.finish-1]}: ${r.player} (${r.dk} DK pts)`).join(' | ');
+  const seasonId = eventIdFor(evtName, dateStr);
   const leader = sorted[0];
   const gap = sorted.length > 1 ? sorted[0][1].pts - sorted[1][1].pts : 0;
-  const leaderTotal = leader[1].prize + 350;
-  const movers = rows.filter(r => (oldRanks.indexOf(r.player)-newRanks.indexOf(r.player)) >= 2);
 
   document.getElementById('sheet-results').textContent =
-    rows.map(r=>`${seasonId}\t${dateStr}\t2026 Regular\t${evtName}\t${r.player}\t${r.finish}\t${r.dk}\t${evtType==='Major'?'TRUE':'FALSE'}\t${evtType}\t${r.prize}\t${r.lineup}`).join('\n');
+    rows.map(r=>`${seasonId}\t${dateStr}\t${seasonLabel()}\t${evtName}\t${r.player}\t${r.finish}\t${r.dk}\t${evtType==='Major'?'TRUE':'FALSE'}\t${evtType}\t${r.prize}\t${r.lineup}`).join('\n');
   document.getElementById('sheet-summary').textContent =
-    `${seasonId}\t${dateStr}\t2026 Regular\t${evtName}\t${evtType==='Major'}\t${winner?.player||''}\t${winner?.dk||''}\t${rows.length}\t${evtType}`;
-  buildRecapTemplate(evtName, evtWeek, winner, document.getElementById('pga-winner').value || '');
+    `${seasonId}\t${dateStr}\t${seasonLabel()}\t${evtName}\t${evtType==='Major'?'TRUE':'FALSE'}\t${winnerNames}\t${winner?.dk||''}\t${rows.length}\t${evtType}`;
+  buildRecapTemplate(evtName, evtWeek, winners.length ? { player: winnerNames, dk: winner.dk } : null, document.getElementById('pga-winner').value || '');
+
+  const majorPayout = fmtMoney((PRIZE[1] || 0) + CONFIG.majorBonus);
+  const winLine = !winner ? '' : winners.length > 1
+    ? `CO-WINNERS: ${winnerNames} tie at ${winner.dk} DK points to split Week ${evtWeek}${evtType==='Major'?' and the '+majorPayout+' Major payout':''}.`
+    : `WINNER: ${winner.player} fires ${winner.dk} DK points to claim Week ${evtWeek}${evtType==='Major'?' and the '+majorPayout+' Major payout':''}.`;
+  const others = top3.filter(r => r.finish > 1);
+  const podiumLine = others.length ? ` ${others.map(r=>`${r.player} (${ordinal(r.finish)})`).join(', ')} round out the top 3.` : '';
+  const weeksLeft = isNaN(weekNum) ? null : Math.max(0, CONFIG.weeks - weekNum);
+  const weeksLeftText = weeksLeft === null ? '' : weeksLeft === 0 ? ' with the season complete' : ` with ${weeksLeft} week${weeksLeft===1?'':'s'} left`;
   document.getElementById('xthread-text').textContent =
 `Week ${evtWeek} results are in. ${evtName} is done. [1/4]
 
 ---
 
-${winner?`WINNER: ${winner.player} fires ${winner.dk} DK points to claim Week ${evtWeek}${evtType==='Major'?' and the $30 Major bonus':''}.${top3.slice(1).length?` ${top3.slice(1).map(r=>`${r.player} (${['','2nd','3rd'][r.finish]})`).join(', ')} round out the top 3.`:''}`:''} 
+${winLine}${podiumLine}
 
 ---
 
 STANDINGS — Top 5 after Wk ${evtWeek}:
-${sorted.slice(0,5).map(([p,s],i)=>`${i+1}. ${p} — ${s.pts} pts`).join('\n')}
+${sorted.slice(0,5).map(([p,s],i)=>`${i+1}. ${p} — ${fmtPts(s.pts)} pts`).join('\n')}
 
 ---
 
-${leader[0]} leads the DEBO Cup by ${gap} points with ${33-parseInt(evtWeek)} weeks left. Follow along at debocup.com #DEBOCup`;
-
-
+${leader[0]} leads the DEBO Cup by ${fmtPts(gap)} points${weeksLeftText}. Follow along at debocup.com #DEBOCup`;
 
   document.getElementById('output-area').style.display = 'block';
   document.getElementById('output-area').scrollIntoView({behavior:'smooth'});
@@ -1073,43 +1386,38 @@ ${leader[0]} leads the DEBO Cup by ${gap} points with ${33-parseInt(evtWeek)} we
 
 function renderLiveStandings() {
   const sorted = Object.entries(CURRENT_STANDINGS).sort((a,b) => b[1].pts - a[1].pts);
-  const LIVE_BONUS = [350, 150, 60];
-  document.getElementById('live-standings-tbl').innerHTML =
-    `<thead><tr><th></th><th>Player</th><th style="text-align:right">DC pts</th><th style="text-align:right">Record</th><th style="text-align:right">Season $</th><th style="text-align:right">End of season bonus</th></tr></thead><tbody>` +
-    sorted.map(([p,s],i) => {
-      const badge = i<3?['rank-1','rank-2','rank-3'][i]:'';
-      const bonusLabel = i===0 ? '<span style="color:#b5860d;font-weight:600;">$350 champion</span>' : i===1 ? '<span style="color:#6b6a64;">$150 runner-up</span>' : i===2 ? '<span style="color:#7a4a1e;">$60 third place</span>' : '—';
-      return `<tr><td><span class="rank-badge ${badge}">${i+1}</span></td><td style="font-weight:600">${p}</td><td style="text-align:right;font-weight:600">${s.pts}</td><td style="text-align:right;color:var(--text2)">${s.wins}W / ${s.top3} T3</td><td style="text-align:right;color:var(--text2)">$${s.prize}</td><td style="text-align:right;">${bonusLabel}</td></tr>`;
-    }).join('') + `</tbody>`;
+  document.getElementById('live-standings-tbl').innerHTML = sorted.length
+    ? standingsTableHtml(sorted)
+    : `<tbody><tr><td style="color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;">No standings available.</td></tr></tbody>`;
 }
 
 function renderHistory() {
-  const season2026 = ALL_RESULTS.filter(r => (r['Season']||'').includes('2026'));
+  const seasonRows = ALL_RESULTS.filter(inSeason);
   const byEvent = {};
-  season2026.forEach(r => {
+  seasonRows.forEach(r => {
     const evt = r['Event']||r['event'];
     if (!evt) return;
     if (!byEvent[evt]) byEvent[evt] = { date: r['Date']||'', type: r['Event Type']||'Regular', rows: [] };
     byEvent[evt].rows.push(r);
   });
-  const eventList = Object.entries(byEvent).sort((a,b) => new Date(b[1].date) - new Date(a[1].date));
+  const eventList = Object.entries(byEvent).sort((a,b) => parseDateAny(b[1].date) - parseDateAny(a[1].date));
   if (!eventList.length) {
     document.getElementById('history-content').innerHTML =
-      `<p style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">No 2026 results found.</p>`;
+      `<p style="font-size:13px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;">No ${esc(seasonYear())} results found${ALL_RESULTS.length ? '' : ' (results feed unavailable)'}.</p>`;
     return;
   }
   document.getElementById('history-content').innerHTML = eventList.map(([evt,data],idx) => {
     const sorted = [...data.rows].sort((a,b)=>parseInt(a['Finish']||99)-parseInt(b['Finish']||99));
     const pillClass = data.type==='Major'?'pill-major':data.type==='Signature'?'pill-sig':'pill-reg';
     const rows = sorted.slice(0,5).map(r=>
-      `<tr><td style="color:var(--text2);width:28px">${r['Finish']}</td><td style="font-weight:${parseInt(r['Finish'])<=3?'600':'400'}">${r['Player']||''}</td><td style="text-align:right;color:var(--text2)">${r['Fantasy_Points']||'—'}</td></tr>`
+      `<tr><td style="color:var(--text2);width:28px">${esc(r['Finish'])}</td><td style="font-weight:${parseInt(r['Finish'])<=3?'600':'400'}">${esc(r['Player']||'')}</td><td style="text-align:right;color:var(--text2)">${esc(r['Fantasy_Points']||'—')}</td></tr>`
     ).join('');
     return `${idx>0?'<hr style="border:none;border-top:0.5px solid var(--border);margin-bottom:1.25rem;">':''}
     <div style="margin-bottom:1.25rem;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
-        <span style="font-size:13px;font-weight:600;font-family:'Helvetica Neue',Arial,sans-serif;">${evt}</span>
-        <span class="pill ${pillClass}">${data.type}</span>
-        <span style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-left:auto;">${data.date}</span>
+        <span style="font-size:13px;font-weight:600;font-family:'Helvetica Neue',Arial,sans-serif;">${esc(evt)}</span>
+        <span class="pill ${pillClass}">${esc(data.type)}</span>
+        <span style="font-size:11px;color:var(--text2);font-family:'Helvetica Neue',Arial,sans-serif;margin-left:auto;">${esc(data.date)}</span>
       </div>
       <table class="recent-table"><thead><tr><th>#</th><th>Player</th><th style="text-align:right">DK pts</th></tr></thead><tbody>${rows}</tbody></table>
     </div>`;
@@ -1120,11 +1428,11 @@ function rebuildSelects() {
   document.querySelectorAll('.p-sel').forEach(sel => {
     const cur = sel.value;
     sel.innerHTML = `<option value="">-- player --</option>` +
-      PLAYERS.map(p=>`<option value="${p}"${p===cur?' selected':''}>${p}</option>`).join('');
+      PLAYERS.map(p=>`<option value="${esc(p)}"${p===cur?' selected':''}>${esc(p)}</option>`).join('');
   });
 }
 
-// showTopTab redefined in Cut Sweat section
+// showTopTab is defined in the Cut Sweat section
 
 function showInnerTab(name, btn) {
   ['standings','sheet','recap','xthread'].forEach(t=>document.getElementById('itab-'+t).style.display=t===name?'':'none');
@@ -1145,14 +1453,20 @@ function copyEl(id, btn) {
 let SCHEDULE_DATA = [];
 
 async function loadSchedule() {
+  const url = CONFIG.scheduleTab ? gvizUrl({ sheet: CONFIG.scheduleTab }) : gvizUrl({ gid: GID.schedule });
   try {
-    const text = await fetchCSV(CSV_SCHEDULE);
+    const text = await fetchCSV(url);
     const rows = parseCSVText(text);
+    // gviz silently falls back to the first tab when a sheet name doesn't exist,
+    // so check this really is a schedule.
+    if (rows.length && !('Tournament' in rows[0])) throw new Error(`"${CONFIG.scheduleTab}" is not a schedule tab`);
     SCHEDULE_DATA = rows.filter(r => r['Tournament'] || r['Start Date']);
-    populateScheduleDropdown();
   } catch(e) {
     console.log('Schedule load failed:', e.message);
+    SCHEDULE_DATA = [];
+    DATA_WARNINGS.push(`Schedule could not be read${CONFIG.scheduleTab ? ` from the "${CONFIG.scheduleTab}" tab` : ''} — pick events by typing the details in by hand.`);
   }
+  populateScheduleDropdown();
 }
 
 function populateScheduleDropdown() {
@@ -1217,6 +1531,7 @@ function onEnterEventSelect() {
   const typeEl = document.getElementById('evt-type');
   for (const opt of typeEl.options) { if (opt.value === evtType) { typeEl.value = evtType; break; } }
   if (weekNum) document.getElementById('evt-week').value = weekNum;
+  recalcAllRows(); // event type drives the Major bonus
 
   // ── Week Preview tab ──
   const prevSel = document.getElementById('preview-event-select');
@@ -1382,9 +1697,10 @@ function generatePreviewPost() {
   if (!lockTime) { alert('Please enter the lineup lock time.'); return; }
 
   const lockStr = lockTime.toLowerCase().includes('tomorrow') ? lockTime : 'tomorrow at ' + lockTime;
-  const courseShort = course.split(' ')[0] || tournament.split(' ')[0];
+  // Full course name (the old first-word version gave "DEBO Cup Winners at TPC:").
+  const venue = course.trim() || tournament.trim();
   const deboLine = deboChamp ? ('Defending DEBO champion: ' + deboChamp + '. Can they repeat?') : '';
-  const postParts = [week + ' — ' + tournament + '. ⛳', 'Lineups lock ' + lockStr + '.', 'DEBO Cup Winners at ' + courseShort + ':', pastWinnersText, deboLine, 'debocup.com'].filter(Boolean);
+  const postParts = [week + ' — ' + tournament + '. ⛳', 'Lineups lock ' + lockStr + '.', 'DEBO Cup Winners at ' + venue + ':', pastWinnersText, deboLine, 'debocup.com'].filter(Boolean);
   const post = postParts.join('\n\n');
 
   document.getElementById('preview-post-text').textContent = post;
@@ -1862,13 +2178,12 @@ function buildCutSweatFromLineups() {
   });
 }
 
-// Auto-build when switching to Cut Sweat tab
-const origShowTopTab = showTopTab;
 function showTopTab(name, btn) {
-  ['enter','preview','ownership','cutsweat','history','live-standings','trend','usage','form'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
+  ['enter','preview','ownership','cutsweat','history','live-standings','trend','usage','form','settings'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
   document.querySelectorAll('.top-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  if (name === 'cutsweat') buildCutSweatFromLineups();
+  if (name === 'cutsweat') { buildCutSweatFromLineups(); updateClaudeKeyNotice(); }
+  if (name === 'settings') renderSettingsPanel();
   if (name === 'ownership') syncOwnershipFromPreview();
   if (name === 'trend') { populateTrendPlayerSelect(); renderTrend(); }
   if (name === 'usage') renderUsage();
@@ -2107,6 +2422,7 @@ function saveClaudeKey() {
   if (!v) { st.textContent = 'Enter a key first.'; return; }
   localStorage.setItem('claude_api_key', v);
   st.textContent = 'Saved. Cut Sweat uploads will work now.';
+  updateClaudeKeyNotice();
 }
 function clearClaudeKey() {
   localStorage.removeItem('claude_api_key');
@@ -2123,6 +2439,40 @@ function loadClaudeKey() {
   }
 }
 document.addEventListener('DOMContentLoaded', loadClaudeKey);
+
+function updateClaudeKeyNotice() {
+  const el = document.getElementById('claude-key-notice');
+  let has = false;
+  try { has = !!localStorage.getItem('claude_api_key'); } catch (e) {}
+  if (el) el.style.display = has ? 'none' : '';
+}
+
+// ── Settings tab ──────────────────────────────────────────────────────────
+function renderSettingsPanel() {
+  const src = document.getElementById('settings-source');
+  if (!src) return;
+  src.innerHTML = SETTINGS_SOURCE === 'sheet'
+    ? `Read from the sheet's <strong>Settings</strong> tab. Season <strong>${esc(seasonYear())}</strong> (Event_IDs start "${esc(seasonLabel())}").`
+    : `<strong>No Settings tab in the sheet yet</strong> — these are the built-in defaults. Sign in below and press "Set up sheet" to create it.`;
+  document.getElementById('settings-tbl').innerHTML = '<tbody>' + SETTINGS_SPEC.map(([label, key, , note]) => {
+    let v = CONFIG[key];
+    if (key === 'season') v = seasonYear();
+    if (key === 'seasonLabel') v = seasonLabel();
+    if (key === 'scheduleTab') v = CONFIG.scheduleTab || '(2026 SCHEDULE tab)';
+    if (Array.isArray(v)) v = v.join(', ');
+    return `<tr><td style="font-weight:600;white-space:nowrap;">${esc(label)}</td><td>${esc(v === '' ? '—' : v)}</td><td class="note">${esc(note)}</td></tr>`;
+  }).join('') + '</tbody>';
+
+  const rows = ROSTER.length ? ROSTER : PLAYERS.map(p => ({ player: p, dk: '', aliases: [], color: '', active: true }));
+  document.getElementById('roster-tbl').innerHTML =
+    `<thead><tr><th>Player</th><th>DK username(s)</th><th>Active</th><th style="text-align:right">In standings</th></tr></thead><tbody>` +
+    rows.map((p, i) => `<tr${p.active ? '' : ' style="opacity:0.5;"'}>
+      <td style="font-weight:600;"><span class="color-swatch" style="background:${esc(playerColor(p.player, i))}"></span>${esc(p.player)}</td>
+      <td style="font-family:'Courier New',monospace;font-size:12px;">${esc([p.dk, ...p.aliases].filter(Boolean).join(', ') || '—')}</td>
+      <td>${p.active ? 'Yes' : 'No'}</td>
+      <td style="text-align:right;">${p.player in CURRENT_STANDINGS ? fmtPts(CURRENT_STANDINGS[p.player].pts) + ' pts' : '—'}</td></tr>`).join('') + '</tbody>';
+  renderUndoButtons();
+}
 
 
 // ── Recap template ─────────────────────────────────────────────
@@ -2159,152 +2509,413 @@ function updateRecapTemplate() {
 
 const CLIENT_ID = '253075292004-ga8anbqsnq774uju3m5k0rjabo4rq4pj.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
-const SHEET_ID_WRITE = '10Oa-LOeo7lyR5fkruCUun4A9Ofr_w2NLn0xfZEn_T0g';
 
 let tokenClient;
 let accessToken = null;
-let pendingRows = null;
+let accessTokenExpires = 0;
+let _afterAuth = null;
 
 function initGoogleAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPES,
     callback: (resp) => {
-      if (resp.error) { setAuthStatus(false, 'Sign-in failed: ' + resp.error); return; }
+      if (resp.error) { setAuthStatus(false, 'Sign-in failed: ' + resp.error); _afterAuth = null; return; }
       accessToken = resp.access_token;
+      accessTokenExpires = Date.now() + ((resp.expires_in || 3600) - 60) * 1000;
       setAuthStatus(true, 'Signed in — ready to push');
-      document.getElementById('push-btn').disabled = false;
-      if (pendingRows) { doWrite(pendingRows); pendingRows = null; }
+      const next = _afterAuth; _afterAuth = null;
+      if (next) next();
     },
   });
 }
 
+function hasValidToken() { return accessToken && Date.now() < accessTokenExpires; }
+
+// Run fn once we have a (non-expired) token, signing in first if needed.
+// prompt:'' only shows Google's consent screen the first time.
+function withAuth(fn) {
+  if (hasValidToken()) return fn();
+  if (!tokenClient) { alert('Google sign-in is still loading — try again in a moment.'); return; }
+  _afterAuth = fn;
+  tokenClient.requestAccessToken({ prompt: '' });
+}
+
 function handleAuthClick() {
-  if (accessToken) {
-    accessToken = null;
+  if (hasValidToken()) {
+    try { google.accounts.oauth2.revoke(accessToken, () => {}); } catch (e) {}
+    accessToken = null; accessTokenExpires = 0;
     setAuthStatus(false, 'Signed out');
-    document.getElementById('push-btn').disabled = true;
-    document.getElementById('auth-btn').textContent = 'Sign in with Google';
   } else {
-    tokenClient.requestAccessToken({ prompt: 'consent' });
+    withAuth(() => {});
   }
 }
 
+// Updates every sign-in bar on the page (Enter results + Settings).
 function setAuthStatus(signedIn, msg) {
-  document.getElementById('auth-dot').className = 'auth-dot' + (signedIn ? ' signed-in' : '');
-  document.getElementById('auth-text').textContent = msg;
-  document.getElementById('auth-btn').textContent = signedIn ? 'Sign out' : 'Sign in with Google';
+  document.querySelectorAll('.auth-dot').forEach(el => el.className = 'auth-dot' + (signedIn ? ' signed-in' : ''));
+  document.querySelectorAll('.auth-text').forEach(el => el.textContent = msg);
+  document.querySelectorAll('.auth-btn').forEach(el => el.textContent = signedIn ? 'Sign out' : 'Sign in with Google');
 }
 
-async function pushToSheets() {
-  const rows = getRows();
-  if (!rows.length) { alert('No results to push.'); return; }
+// ── Sheets API helpers ──
+async function sheetsApi(path, opts = {}) {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${REAL_SHEET_ID}${path}`, {
+    ...opts,
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 401) { accessToken = null; setAuthStatus(false, 'Google sign-in expired — sign in again'); }
+    throw new Error(body.error?.message || ('HTTP ' + res.status));
+  }
+  return body;
+}
+function a1(tab, range) { return encodeURIComponent(`'${tab.replace(/'/g, "''")}'` + (range ? '!' + range : '')); }
+function colLetter(i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+async function getValues(tab, range) {
+  return (await sheetsApi(`/values/${a1(tab, range)}?valueRenderOption=FORMATTED_VALUE`)).values || [];
+}
+async function appendValues(tab, values, input = 'USER_ENTERED') {
+  return sheetsApi(`/values/${a1(tab, 'A1')}:append?valueInputOption=${input}&insertDataOption=INSERT_ROWS`,
+    { method: 'POST', body: JSON.stringify({ values }) });
+}
+async function updateValues(tab, range, values, input = 'USER_ENTERED') {
+  return sheetsApi(`/values/${a1(tab, range)}?valueInputOption=${input}`,
+    { method: 'PUT', body: JSON.stringify({ values }) });
+}
+async function batchUpdate(requests) {
+  return sheetsApi(':batchUpdate', { method: 'POST', body: JSON.stringify({ requests }) });
+}
+// Tab titles/ids straight from the spreadsheet, so a renamed tab still works.
+async function getSheetMeta() {
+  const body = await sheetsApi('?fields=sheets.properties(sheetId,title)');
+  const byGid = {}, byTitle = {};
+  (body.sheets || []).forEach(s => { byGid[s.properties.sheetId] = s.properties.title; byTitle[s.properties.title] = s.properties.sheetId; });
+  return { byGid, byTitle, title: key => byGid[GID[key]] || TAB[key] };
+}
 
+// ── Finding an event already in the sheet ──
+function normEventId(s) { return String(s || '').toLowerCase().replace(/[\s_]+/g, '_').trim(); }
+function sameDate(a, b) { const x = parseDateAny(a), y = parseDateAny(b); return x && y && x === y; }
+function sameEventName(a, b) {
+  const x = String(a || '').trim().toLowerCase(), y = String(b || '').trim().toLowerCase();
+  return !!x && (x === y || eventsAreSame(a, b));
+}
+// Returns 0-based sheet row indexes (row 0 = header) of this event's rows in
+// RESULTS, EVENT SUMMARIES and TIES. A row matches on the same Event_ID, or on
+// the same season + event + date (IDs have been typed a few different ways).
+async function findEventRows(meta, ev) {
+  const [res, sum, ties] = await Promise.all([
+    getValues(meta.title('results'), 'A:D'),
+    getValues(meta.title('summaries'), 'A:D'),
+    getValues(meta.title('ties'), 'A:C'),
+  ]);
+  const id = normEventId(ev.eventId);
+  const matchIdRow = r => normEventId(r[0]) === id ||
+    (String(r[2] || '').trim() === ev.seasonLabel && sameEventName(r[3], ev.evtName) && sameDate(r[1], ev.dateStr));
+  const idx = (rows, fn) => rows.map((r, i) => (i > 0 && fn(r)) ? i : -1).filter(i => i > 0);
+  return {
+    results:   idx(res, matchIdRow),
+    summaries: idx(sum, matchIdRow),
+    ties:      idx(ties, r => String(r[0] || '').trim() === ev.seasonLabel && sameEventName(r[1], ev.evtName)),
+  };
+}
+// Delete rows bottom-up in one batch so earlier indexes stay valid.
+async function deleteRows(meta, found) {
+  const reqs = [];
+  [['results', found.results], ['summaries', found.summaries], ['ties', found.ties]].forEach(([key, rows]) => {
+    const sheetId = meta.byTitle[meta.title(key)];
+    if (sheetId === undefined) return;
+    [...rows].sort((a, b) => b - a).forEach(r => reqs.push({
+      deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: r, endIndex: r + 1 } },
+    }));
+  });
+  if (reqs.length) await batchUpdate(reqs);
+  return reqs.length;
+}
+
+// ── Push ──
+const LAST_PUSH_KEY = 'debo_last_push';
+function getLastPush() { try { return JSON.parse(localStorage.getItem(LAST_PUSH_KEY) || 'null'); } catch (e) { return null; } }
+function setLastPush(v) { try { v ? localStorage.setItem(LAST_PUSH_KEY, JSON.stringify(v)) : localStorage.removeItem(LAST_PUSH_KEY); } catch (e) {} renderUndoButtons(); }
+
+function buildPushPayload() {
+  const rows = getRows();
+  if (!rows.length) return null;
   const evtName = document.getElementById('evt-name').value || 'Tournament';
   const evtDate = document.getElementById('evt-date').value || '';
   const evtType = document.getElementById('evt-type').value;
   const dateStr = evtDate || 'TBD';
-  const slug = evtName.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
-  const seasonId = `2026 Regular__${dateStr.replace(/-/g,'')}__${slug}`;
-  const winner = [...rows].sort((a,b)=>a.finish-b.finish)[0];
+  const seasonLbl = seasonLabel();
+  const eventId = eventIdFor(evtName, dateStr);
+  const isMajor = evtType === 'Major' ? 'TRUE' : 'FALSE';
+  const winners = [...rows].filter(r => r.finish === 1);
 
   const resultRows = rows.map(r => [
-    seasonId, dateStr, '2026 Regular', evtName,
-    r.player, r.finish, r.dk, evtType === 'Major' ? 'TRUE' : 'FALSE', evtType, r.prize, r.lineup
+    eventId, dateStr, seasonLbl, evtName,
+    r.player, r.finish, r.dk, isMajor, evtType, r.prize, r.lineup
   ]);
 
-  // ── Detect ties and calculate DC adjustments ──────────────────────────
-  const DC_PTS_MAP = {1:25,2:15,3:10,4:7,5:5,6:4,7:3,8:2,9:1,10:1};
+  // Tie adjustments: RESULTS stores the shared place (e.g. both "3"), and the
+  // sheet counts that place's full points, so TIES carries the difference.
   const tieRows = [];
-
-  // Group players by finish position
   const byFinish = {};
-  rows.forEach(r => {
-    if (!byFinish[r.finish]) byFinish[r.finish] = [];
-    byFinish[r.finish].push(r.player);
-  });
-
-  // Find ties (2+ players at same position) — n-way ties split n positions' points
+  rows.forEach(r => { (byFinish[r.finish] = byFinish[r.finish] || []).push(r.player); });
   Object.entries(byFinish).forEach(([finish, players]) => {
     if (players.length < 2) return;
     const pos = parseInt(finish);
-    const n = players.length;
-    let sum = 0;
-    for (let i = 0; i < n; i++) sum += DC_PTS_MAP[pos + i] || 0;
-    const avg = sum / n;
-    const adj = parseFloat((avg - (DC_PTS_MAP[pos] || 0)).toFixed(2));
-    if (adj === 0) return; // no adjustment needed (positions worth the same)
-    players.forEach(player => {
-      tieRows.push(['2026 Regular', evtName, player, adj]);
-    });
+    const adj = parseFloat((tieSplitDcPts(pos, players.length) - (DC_PTS[pos] || 0)).toFixed(2));
+    if (adj === 0) return; // positions worth the same
+    players.forEach(player => tieRows.push([seasonLbl, evtName, player, adj]));
   });
 
   const summaryRow = [
-    seasonId, dateStr, '2026 Regular', evtName,
-    evtType === 'Major' ? 'TRUE' : 'FALSE',
-    winner?.player || '', winner?.dk || '', rows.length, evtType
+    eventId, dateStr, seasonLbl, evtName, isMajor,
+    winners.map(r => r.player).join(' & '), winners[0]?.dk || '', rows.length, evtType
   ];
-
-  if (!accessToken) {
-    pendingRows = { resultRows, summaryRow, tieRows };
-    tokenClient.requestAccessToken({ prompt: '' });
-    return;
-  }
-
-  doWrite({ resultRows, summaryRow, tieRows });
+  return { resultRows, summaryRow, tieRows, ev: { eventId, seasonLabel: seasonLbl, evtName, dateStr } };
 }
 
-async function doWrite({ resultRows, summaryRow, tieRows = [] }) {
+function pushToSheets() {
+  const payload = buildPushPayload();
+  if (!payload) { alert('No results to push.'); return; }
+  hideDupPanel();
+  withAuth(() => doPush(payload, 'check'));
+}
+
+function setPushBtn(text, disabled) {
   const btn = document.getElementById('push-btn');
-  btn.disabled = true;
-  btn.textContent = 'Pushing to Sheets...';
+  btn.textContent = text; btn.disabled = !!disabled;
+}
 
-  const sheetId = '10Oa-LOeo7lyR5fkruCUun4A9Ofr_w2NLn0xfZEn_T0g';
-
-  const apiAppend = async (sheetName, values) => {
-    const res = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values })
-      }
-    );
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(sheetName + ' write failed: ' + (err.error?.message || res.status));
-    }
-    return res.json();
-  };
-
+// mode: 'check' = refuse if the event is already in the sheet; 'replace' = delete it first.
+async function doPush(payload, mode) {
+  const { resultRows, summaryRow, tieRows, ev } = payload;
+  setPushBtn('Checking the sheet...', true);
   try {
-    btn.textContent = 'Writing results...';
-    await apiAppend('RESULTS', resultRows);
-
-    btn.textContent = 'Writing event summary...';
-    await apiAppend('EVENT SUMMARIES', [summaryRow]);
-
-    if (tieRows.length > 0) {
-      btn.textContent = 'Writing tie adjustments...';
-      await apiAppend('TIES', tieRows);
+    const meta = await getSheetMeta();
+    const found = await findEventRows(meta, ev);
+    const already = found.results.length + found.summaries.length;
+    if (already && mode !== 'replace') {
+      setPushBtn('Push to Google Sheets', false);
+      showDupPanel(payload, found);
+      return;
+    }
+    if (already || found.ties.length) {
+      setPushBtn('Removing the old rows...', true);
+      await deleteRows(meta, found);
     }
 
-    btn.textContent = 'Pushed successfully!';
+    setPushBtn('Writing results...', true);
+    await appendValues(meta.title('results'), resultRows);
+    setPushBtn('Writing event summary...', true);
+    await appendValues(meta.title('summaries'), [summaryRow]);
+    if (tieRows.length) {
+      setPushBtn('Writing tie adjustments...', true);
+      await appendValues(meta.title('ties'), tieRows);
+    }
+
+    let rosterMsg = '';
+    try { rosterMsg = await saveRosterChanges(meta); }
+    catch (e) { rosterMsg = ` (Couldn't save new DK usernames to PLAYERS: ${e.message})`; }
+
+    setLastPush({ ...ev, rows: resultRows.length, ties: tieRows.length, at: new Date().toISOString() });
+    const btn = document.getElementById('push-btn');
+    setPushBtn('Pushed successfully!', true);
     btn.style.background = '#1a4a32';
     const tieMsg = tieRows.length > 0 ? ` + ${tieRows.length} tie adjustment(s)` : '';
-    setAuthStatus(true, `Pushed ${resultRows.length} rows to RESULTS + 1 row to EVENT SUMMARIES${tieMsg}. Standings and career stats update automatically.`);
-    setTimeout(() => {
-      btn.textContent = 'Push to Google Sheets';
-      btn.style.background = '';
-      btn.disabled = false;
-    }, 4000);
-
-  } catch(e) {
-    btn.textContent = 'Push to Google Sheets';
-    btn.disabled = false;
-    setAuthStatus(true, 'Push failed: ' + e.message);
+    const replMsg = already ? ` Replaced ${found.results.length} old row(s).` : '';
+    setAuthStatus(true, `Pushed ${resultRows.length} rows to RESULTS + 1 row to EVENT SUMMARIES${tieMsg}.${replMsg}${rosterMsg} Standings and career stats update automatically.`);
+    setTimeout(() => { setPushBtn('Push to Google Sheets', false); btn.style.background = ''; }, 4000);
+    setTimeout(loadAll, 2500); // pick up the sheet's recalculated standings
+  } catch (e) {
+    setPushBtn('Push to Google Sheets', false);
+    setAuthStatus(hasValidToken(), 'Push failed: ' + e.message);
     alert('Push failed: ' + e.message);
   }
+}
+
+function showDupPanel(payload, found) {
+  const el = document.getElementById('dup-panel');
+  el.style.display = 'block';
+  el.innerHTML = `
+    <strong>${esc(payload.ev.evtName)} is already in the sheet.</strong>
+    Found ${found.results.length} RESULTS row(s), ${found.summaries.length} EVENT SUMMARIES row(s) and ${found.ties.length} TIES row(s)
+    for this event (${esc(payload.ev.eventId)}). Pushing again would count the week twice.
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="copy-btn" id="dup-replace">Replace them with these results</button>
+      <button class="copy-btn" onclick="hideDupPanel()">Cancel</button>
+    </div>`;
+  document.getElementById('dup-replace').onclick = () => { hideDupPanel(); withAuth(() => doPush(payload, 'replace')); };
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function hideDupPanel() { const el = document.getElementById('dup-panel'); if (el) el.style.display = 'none'; }
+
+// ── Undo ──
+function renderUndoButtons() {
+  const last = getLastPush();
+  document.querySelectorAll('.undo-push-btn').forEach(btn => {
+    btn.style.display = last ? '' : 'none';
+    if (last) btn.textContent = `Undo last push (${last.evtName}, ${last.dateStr})`;
+  });
+}
+function undoLastPush() {
+  const last = getLastPush();
+  if (!last) { alert('Nothing to undo.'); return; }
+  if (!confirm(`Remove ${last.evtName} (${last.dateStr}) from RESULTS, EVENT SUMMARIES and TIES?\n\nThis deletes every row for that event in those tabs.`)) return;
+  withAuth(async () => {
+    try {
+      const meta = await getSheetMeta();
+      const found = await findEventRows(meta, last);
+      const n = await deleteRows(meta, found);
+      setLastPush(null);
+      setAuthStatus(true, n ? `Undo complete — removed ${n} row(s) for ${last.evtName}.` : `Nothing to remove — ${last.evtName} wasn't in the sheet.`);
+      setSetupStatus(n ? `Removed ${n} row(s) for ${last.evtName}.` : `${last.evtName} wasn't in the sheet.`);
+      setTimeout(loadAll, 2500);
+    } catch (e) {
+      alert('Undo failed: ' + e.message);
+    }
+  });
+}
+
+// ── Roster write-back (PLAYERS tab) ──
+const ROSTER_COLUMNS = ['Color', 'Active', 'DK Aliases'];
+// Adds any missing optional columns to the PLAYERS header; returns the header.
+async function ensurePlayersColumns(meta, values) {
+  const tab = meta.title('players');
+  const header = (values[0] || []).map(h => String(h).trim());
+  const missing = ROSTER_COLUMNS.filter(c => !header.includes(c));
+  if (missing.length) {
+    const start = header.length;
+    await updateValues(tab, `${colLetter(start)}1:${colLetter(start + missing.length - 1)}1`, [missing], 'RAW');
+    header.push(...missing);
+  }
+  return header;
+}
+
+const DEFAULT_PLAYER_COLORS = {
+  'Anth':'#1a6091','B Luke':'#c05c00','Brad':'#6b8e23','Broc':'#6a0572',
+  'Colin':'#9b2226','DeCampli':'#3949ab','Kyle':'#b5860d','MK':'#5c5c5c',
+  'Stew':'#0e7c86','Wiley':'#7c3d12','Woody':'#2d6a4f','Zach':'#8b4513',
+  'Loomis':'#4a1942','Lloyd':'#0d3b6e'
+};
+const EXTRA_PLAYER_COLORS = ['#c2185b','#5e35b1','#00838f','#827717','#d84315','#37474f','#6d4c41','#1565c0','#ad1457','#2e7d32'];
+function nextFreeColor(used) {
+  return EXTRA_PLAYER_COLORS.find(c => !used.has(c)) || EXTRA_PLAYER_COLORS[used.size % EXTRA_PLAYER_COLORS.length];
+}
+
+// Saves usernames assigned in the import preview (and brand-new players) to PLAYERS.
+async function saveRosterChanges(meta) {
+  const links = Object.entries(PENDING_ROSTER.links);
+  if (!links.length && !PENDING_ROSTER.newPlayers.length) return '';
+  meta = meta || await getSheetMeta();
+  const tab = meta.title('players');
+  const values = await getValues(tab, 'A:ZZ');
+  const header = await ensurePlayersColumns(meta, values);
+  const col = name => header.indexOf(name);
+  const cDk = col('DK Username'), cPlayer = col('Player'), cAliases = col('DK Aliases');
+  const cActive = col('Active'), cColor = col('Color'), cRookie = col('Rookie Year');
+  if (cDk < 0 || cPlayer < 0) throw new Error('PLAYERS tab needs "DK Username" and "Player" columns');
+
+  const usedColors = new Set(values.slice(1).map(r => String(r[cColor] || '')).filter(Boolean));
+  const updates = [];
+  let added = 0, linked = 0;
+
+  // New players → new rows
+  const newRows = PENDING_ROSTER.newPlayers.map(name => {
+    const row = new Array(header.length).fill('');
+    row[cPlayer] = name;
+    const link = links.find(([, p]) => p === name);
+    if (link) row[cDk] = link[0];
+    if (cRookie >= 0) row[cRookie] = seasonYear();
+    row[cActive] = 'TRUE';
+    const c = nextFreeColor(usedColors); usedColors.add(c); row[cColor] = c;
+    added++;
+    return row;
+  });
+
+  // Links for existing players → DK Username if empty, else DK Aliases
+  links.forEach(([dk, player]) => {
+    if (PENDING_ROSTER.newPlayers.includes(player)) return;
+    const i = values.findIndex((r, idx) => idx > 0 && String(r[cPlayer] || '').trim() === player);
+    if (i < 0) return;
+    const r = values[i];
+    const current = String(r[cDk] || '').trim();
+    const aliases = String(r[cAliases] || '').split(/[,;]/).map(s => s.trim()).filter(Boolean);
+    const known = [current, ...aliases].map(s => cleanDkName(s).toLowerCase());
+    if (known.includes(dk.toLowerCase())) return;
+    if (!current) updates.push({ range: `${colLetter(cDk)}${i + 1}`, value: dk });
+    else updates.push({ range: `${colLetter(cAliases)}${i + 1}`, value: [...aliases, dk].join(', ') });
+    linked++;
+  });
+
+  for (const u of updates) await updateValues(tab, u.range, [[u.value]], 'RAW');
+  if (newRows.length) await appendValues(tab, newRows, 'RAW');
+  PENDING_ROSTER = { links: {}, newPlayers: [] };
+  const parts = [];
+  if (linked) parts.push(`${linked} DK username(s) saved to PLAYERS`);
+  if (added) parts.push(`${added} new player(s) added to PLAYERS`);
+  return parts.length ? ' ' + parts.join(', ') + '.' : '';
+}
+
+// ── One-time sheet setup (Settings tab + PLAYERS columns) ──
+function setSetupStatus(msg) { const el = document.getElementById('setup-status'); if (el) el.textContent = msg; }
+
+function settingsValueFor(key) {
+  const v = CONFIG[key];
+  return Array.isArray(v) ? v.join(', ') : String(v ?? '');
+}
+
+function setupSheet() {
+  withAuth(async () => {
+    try {
+      setSetupStatus('Working...');
+      const meta = await getSheetMeta();
+      const msgs = [];
+
+      // 1. Settings tab
+      if (meta.byTitle[TAB.settings] === undefined) {
+        const add = await batchUpdate([{ addSheet: { properties: { title: TAB.settings, gridProperties: { rowCount: 40, columnCount: 3, frozenRowCount: 1 } } } }]);
+        const sheetId = add.replies[0].addSheet.properties.sheetId;
+        // Value column is plain text so "33" and "25, 15, 10" read back the same way.
+        await batchUpdate([
+          { repeatCell: { range: { sheetId, startColumnIndex: 1, endColumnIndex: 2 }, cell: { userEnteredFormat: { numberFormat: { type: 'TEXT' } } }, fields: 'userEnteredFormat.numberFormat' } },
+          { repeatCell: { range: { sheetId, startRowIndex: 0, endRowIndex: 1 }, cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: 'userEnteredFormat.textFormat.bold' } },
+        ]);
+        const rows = [['Setting', 'Value', 'Notes'], ...SETTINGS_SPEC.map(([label, key, , note]) => [label, settingsValueFor(key), note])];
+        await updateValues(TAB.settings, `A1:C${rows.length}`, rows, 'RAW');
+        msgs.push('Created the Settings tab');
+      } else msgs.push('Settings tab already exists');
+
+      // 2. PLAYERS: Color / Active / DK Aliases
+      const ptab = meta.title('players');
+      const values = await getValues(ptab, 'A:ZZ');
+      const header = await ensurePlayersColumns(meta, values);
+      const cPlayer = header.indexOf('Player'), cColor = header.indexOf('Color'), cActive = header.indexOf('Active');
+      const used = new Set(values.slice(1).map(r => String(r[cColor] || '')).filter(Boolean));
+      const colorCol = [], activeCol = [];
+      let filled = 0;
+      for (let i = 1; i < values.length; i++) {
+        const r = values[i], p = String(r[cPlayer] || '').trim();
+        let color = String(r[cColor] || ''), active = String(r[cActive] || '');
+        if (p && !color) { color = DEFAULT_PLAYER_COLORS[p] && !used.has(DEFAULT_PLAYER_COLORS[p]) ? DEFAULT_PLAYER_COLORS[p] : nextFreeColor(used); used.add(color); filled++; }
+        if (p && !active) { active = (p in CURRENT_STANDINGS) ? 'TRUE' : 'FALSE'; filled++; }
+        colorCol.push([color]); activeCol.push([active]);
+      }
+      if (values.length > 1) {
+        await updateValues(ptab, `${colLetter(cColor)}2:${colLetter(cColor)}${values.length}`, colorCol, 'RAW');
+        await updateValues(ptab, `${colLetter(cActive)}2:${colLetter(cActive)}${values.length}`, activeCol, 'USER_ENTERED');
+      }
+      msgs.push(filled ? 'filled Color / Active on PLAYERS' : 'PLAYERS columns already set');
+
+      setSetupStatus(msgs.join('; ') + '. Reloading...');
+      await loadAll();
+      setSetupStatus(msgs.join('; ') + '. Done.');
+    } catch (e) {
+      setSetupStatus('Setup failed: ' + e.message);
+    }
+  });
 }
 
 // Load Google Identity Services
@@ -2313,6 +2924,7 @@ window.addEventListener('load', () => {
   script.src = 'https://accounts.google.com/gsi/client';
   script.onload = initGoogleAuth;
   document.head.appendChild(script);
+  renderUndoButtons();
 });
 
 
@@ -2345,7 +2957,7 @@ function renderTrend() {
   const emptyMsg = document.getElementById('trend-empty');
   if (!grid) return;
 
-  const season = ALL_RESULTS.filter(r => (r['Season']||'').includes('2026') && r['Player'] && r['Event']);
+  const season = ALL_RESULTS.filter(r => inSeason(r) && r['Player'] && r['Event']);
   if (!season.length) {
     emptyMsg.style.display = '';
     grid.style.display = 'none';
@@ -2430,7 +3042,7 @@ function renderTrend() {
   const dpr = window.devicePixelRatio || 1;
 
   sortedPlayers.forEach((p, pi) => {
-    const color = TREND_COLORS[sortedPlayers.indexOf(p) % TREND_COLORS.length];
+    const color = playerColor(p, sortedPlayers.indexOf(p));
     const currentRank = ranksByEvent[lastEvt]?.[p] || '—';
     const _rawPts = playerCumPts[p][lastEvt] || 0;
     const currentPts = Number.isInteger(_rawPts) ? _rawPts : Math.round(_rawPts * 10) / 10;
@@ -2603,7 +3215,7 @@ let _usageActivePlayer = null;
 const USAGE_INITIAL = 30;
 
 function buildUsageData() {
-  const season = ALL_RESULTS.filter(r => (r['Season']||'').includes('2026') && r['Player'] && r['Lineup']);
+  const season = ALL_RESULTS.filter(r => inSeason(r) && r['Player'] && r['Lineup']);
   const leagueData  = {}; // golfer -> { count, owners: {player: [events]} }
   const playerData  = {}; // player -> { golfer: [events] }
 
@@ -2654,7 +3266,7 @@ function renderUsage() {
   nav.innerHTML = '';
   const allPlayers = Object.keys(playerData).sort((a,b) => {
     // Sort by current standings order
-    const standings = Object.entries(window.CURRENT_STANDINGS||{}).sort((x,y)=>y[1].pts-x[1].pts).map(e=>e[0]);
+    const standings = Object.entries(CURRENT_STANDINGS).sort((x,y)=>y[1].pts-x[1].pts).map(e=>e[0]);
     const ai = standings.indexOf(a), bi = standings.indexOf(b);
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
@@ -2687,14 +3299,14 @@ function getSortedLeague() {
 
 function renderUsageLeague() {
   const sorted = getSortedLeague();
-  const allPlayers = Object.keys(window.CURRENT_STANDINGS || {});
-  const totalPlayers = allPlayers.length || 12;
+  const allPlayers = Object.keys(CURRENT_STANDINGS);
+  const totalPlayers = allPlayers.length || Object.keys(window._usagePlayerData || {}).length || 1;
   const maxVal = sorted[0] ? (_usageSortMode === 'uses'
     ? Object.values(sorted[0][1].owners).reduce((s,e)=>s+e.length,0)
     : sorted[0][1].count) : 1;
 
   document.getElementById('usage-league-sub').textContent =
-    `${sorted.length} unique golfers used · ${Object.keys(buildUsageData().playerData).length} players`;
+    `${sorted.length} unique golfers used · ${Object.keys(window._usagePlayerData || {}).length} players`;
 
   const toShow = _usageShowAll ? sorted : sorted.slice(0, USAGE_INITIAL);
   const container = document.getElementById('usage-league-rows');
@@ -2900,7 +3512,7 @@ function renderUsageCards() {
     const golfers       = Object.entries(playerData[player] || {})
                            .sort((a,b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
     const standingsRank = standings.indexOf(player);
-    const pColor        = TREND_COLORS[standingsRank % TREND_COLORS.length];
+    const pColor        = playerColor(player, standingsRank < 0 ? pi : standingsRank);
     const uniqueCount   = golfers.length;
     const top           = golfers.slice(0, topN);
     const localMax      = top[0] ? top[0][1].length : 1;
@@ -3040,12 +3652,11 @@ function downloadUsageCards() {
 // ── Form Dashboard ────────────────────────────────────────────────────────
 
 let _formSort = 'hot';
-const FORM_PLAYER_COLORS = {
-  'Anth':'#1a6091','B Luke':'#c05c00','Brad':'#2c6e49','Broc':'#6a0572',
-  'Colin':'#9b2226','DeCampli':'#1b6355','Kyle':'#b5860d','MK':'#5c5c5c',
-  'Stew':'#1a6091','Wiley':'#7c3d12','Woody':'#2d6a4f','Zach':'#8b4513',
-  'Loomis':'#4a1942','Lloyd':'#0d3b6e'
-};
+// A player's color: the PLAYERS tab's Color column, else the built-in default,
+// else a palette slot.
+function playerColor(p, idx) {
+  return PLAYER_COLORS[p] || DEFAULT_PLAYER_COLORS[p] || TREND_COLORS[(idx || 0) % TREND_COLORS.length];
+}
 
 function _formParseDate(s) {
   if (!s) return 0;
@@ -3055,7 +3666,7 @@ function _formParseDate(s) {
 }
 
 function getFormData() {
-  const season = ALL_RESULTS.filter(r => (r['Season']||'').includes('2026') && r['Player'] && r['Event']);
+  const season = ALL_RESULTS.filter(r => inSeason(r) && r['Player'] && r['Event']);
   if (!season.length) return null;
 
   // Build ordered event list with type info
@@ -3165,7 +3776,7 @@ function renderFormDashboard() {
     const delta      = formHeatDelta(played, recentWindow);
     const trend      = formTrend(delta);
     const deltaStr   = seasonAvg !== null && recentAvg !== null ? (delta >= 0 ? '+' : '') + delta.toFixed(1) : '—';
-    const color      = FORM_PLAYER_COLORS[p] || TREND_COLORS[idx % TREND_COLORS.length];
+    const color      = playerColor(p, idx);
 
     // Last N played pips
     const lastNPlayed = played.slice(-Math.max(recentWindow, 5));
@@ -3254,7 +3865,7 @@ function renderFormDashboard() {
       ctx.font = '8px Helvetica Neue, Arial, sans-serif';
       ctx.textAlign = 'right';
       ctx.fillText('1st', PAD.l - 3, yFor(1) + 3);
-      ctx.fillText(nPlayers + (nPlayers===12?'th':nPlayers===11?'th':nPlayers===10?'th':'th'), PAD.l - 3, yFor(nPlayers) + 3);
+      ctx.fillText(ordinal(nPlayers), PAD.l - 3, yFor(nPlayers) + 3);
 
       // Season baseline (dashed green)
       if (seasonAvg !== null) {
