@@ -28,6 +28,19 @@
   .settings-note { font-size: 12px; color: var(--text2); font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.5; margin-bottom: 8px; }
   .settings-table td { font-size: 13px; vertical-align: top; }
   .settings-table td.note { font-size: 11px; color: var(--text2); }
+  .stats-table td, .stats-table th { font-size: 12px; white-space: nowrap; }
+  .stats-table td.note { white-space: normal; font-size: 11px; color: var(--text2); min-width: 220px; }
+  .award-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .award-tile { border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px 12px; background: var(--bg2); font-family: 'Helvetica Neue', Arial, sans-serif; }
+  .award-title { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text2); }
+  .award-names { font-family: Georgia, serif; font-size: 18px; font-weight: 700; margin-top: 4px; }
+  .award-value { font-size: 12px; font-weight: 600; color: #b5860d; margin-top: 2px; }
+  .award-blurb { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .h2h-table { border-collapse: collapse; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; }
+  .h2h-table th, .h2h-table td { border: 0.5px solid var(--border); padding: 4px 6px; text-align: center; white-space: nowrap; }
+  .h2h-table thead th { font-size: 10px; max-width: 60px; overflow: hidden; text-overflow: ellipsis; }
+  .h2h-table tbody th { text-align: left; }
+  .h2h-self { background: var(--bg3); }
   .color-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; border: 0.5px solid var(--border2); }
   .data-warn { margin: -0.5rem 0 1rem; padding: 10px 14px; border-radius: var(--radius); background: #fff4e5; border: 0.5px solid #f0c68a; color: #7a4a1e; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; line-height: 1.6; }
   .status-dot.loading { background: #b5860d; animation: pulse 1s infinite; }
@@ -217,6 +230,7 @@
     <button class="top-tab" onclick="showTopTab('trend',this)">Standings trend</button>
     <button class="top-tab" onclick="showTopTab('usage',this)">Golfer usage</button>
     <button class="top-tab" onclick="showTopTab('form',this)">Form dashboard</button>
+    <button class="top-tab" onclick="showTopTab('stats',this)">Season stats</button>
     <button class="top-tab" onclick="showTopTab('settings',this)">Settings</button>
   </div>
 
@@ -286,6 +300,7 @@
         <button class="inner-tab" onclick="showInnerTab('sheet',this)">Sheet data</button>
         <button class="inner-tab" onclick="showInnerTab('recap',this)">Recap post</button>
         <button class="inner-tab" onclick="showInnerTab('xthread',this)">X thread</button>
+        <button class="inner-tab" onclick="showInnerTab('card',this)">Winner card</button>
       </div>
       <div id="itab-standings"><div class="card" style="padding:0.75rem;"><table class="standings-table" id="standings-tbl"></table></div></div>
       <div id="itab-sheet" style="display:none;">
@@ -305,6 +320,11 @@
         <div class="section-label">X post — Monday morning recap</div>
         <div class="output-box" id="recap-text">Calculate results first to generate the recap.</div>
         <button class="copy-btn" onclick="copyEl('recap-text',this)">Copy</button>
+      </div>
+      <div id="itab-card" style="display:none;">
+        <p class="settings-note">Square image for the Monday recap post — winner, podium and the updated top 5.</p>
+        <canvas id="winner-canvas" style="width:100%;max-width:540px;border-radius:var(--radius);border:0.5px solid var(--border);"></canvas>
+        <br><button class="copy-btn" onclick="downloadWinnerCard()">Download image</button>
       </div>
       <div id="itab-xthread" style="display:none;">
         <div class="section-label">X thread — ready to post</div>
@@ -616,6 +636,17 @@
       </div>
 
     </div>
+  </div>
+
+  <!-- SEASON STATS TAB -->
+  <div id="top-stats" style="display:none;">
+    <div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <label class="settings-note" style="margin:0;">Season</label>
+      <select id="stats-season" onchange="renderSeasonStats()" style="width:auto;"></select>
+      <button class="copy-btn" onclick="writeStatsToSheet()" style="margin-left:auto;">Write stats to sheet (STATS tab)</button>
+      <span class="settings-note" id="stats-write-status" style="margin:0;width:100%;"></span>
+    </div>
+    <div id="stats-body"></div>
   </div>
 
   <!-- SETTINGS TAB -->
@@ -1100,8 +1131,18 @@ function handleFile(file) {
 // newPlayers are nicknames created with "+ New player…" (added as PLAYERS rows).
 let PENDING_ROSTER = { links: {}, newPlayers: [] };
 
+// Field ownership from the DK CSV's player table (Player | Roster Position | %Drafted | FPTS),
+// keyed by accent-free lower-case name. Used for league-vs-field "leverage".
+let FIELD_OWN = {};
+function fieldOwnFor(golfer) { return FIELD_OWN[_stripAccents(golfer)]; }
+
 function parseDKCSV(text) {
   const rows = parseCSVText(text);
+  FIELD_OWN = {};
+  rows.forEach(r => {
+    const name = (r['Player'] || '').trim(), pct = parseFloat(String(r['%Drafted'] || '').replace('%', ''));
+    if (name && !isNaN(pct)) FIELD_OWN[_stripAccents(repairDkName(name))] = pct;
+  });
   // Only keep rows with a valid Rank (actual contest entries)
   const entries = rows.filter(r => r['Rank'] && !isNaN(parseFloat(r['Rank'])));
 
@@ -1378,8 +1419,58 @@ ${sorted.slice(0,5).map(([p,s],i)=>`${i+1}. ${p} — ${fmtPts(s.pts)} pts`).join
 
 ${leader[0]} leads the DEBO Cup by ${fmtPts(gap)} points${weeksLeftText}. Follow along at debocup.com #DEBOCup`;
 
+  _lastCalc = { evtName, evtWeek, evtType, rows, winners, sorted };
+  drawWinnerCard(_lastCalc);
+
   document.getElementById('output-area').style.display = 'block';
   document.getElementById('output-area').scrollIntoView({behavior:'smooth'});
+}
+
+// ── Weekly winner card (1080×1080) ──
+let _lastCalc = null;
+function drawWinnerCard(d) {
+  const canvas = document.getElementById('winner-canvas');
+  if (!canvas || !d) return;
+  const W = 1080, H = 1080, PAD = 72;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const accent = d.winners.length ? playerColor(d.winners[0].player) : '#b5860d';
+  ctx.fillStyle = '#141414'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = accent; ctx.fillRect(0, 0, 16, H);
+  const fit = (text, max, size, weight, family) => { let sz = size; do { ctx.font = `${weight} ${sz}px ${family}`; sz--; } while (ctx.measureText(text).width > max && sz > 12); };
+  const SANS = 'Helvetica Neue, Arial, sans-serif', SERIF = 'Georgia, serif';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#b5860d'; ctx.font = `bold 26px ${SANS}`;
+  ctx.fillText(`DEBO CUP · WEEK ${d.evtWeek}${d.evtType === 'Major' ? ' · MAJOR' : ''}`, PAD, 110);
+  ctx.fillStyle = '#9e9d97'; fit(d.evtName.toUpperCase(), W - PAD * 2, 30, 'bold', SANS); ctx.fillText(d.evtName.toUpperCase(), PAD, 154);
+  ctx.fillStyle = '#ffffff'; ctx.font = `bold 34px ${SANS}`;
+  ctx.fillText(d.winners.length > 1 ? 'CO-WINNERS' : 'WINNER', PAD, 262);
+  const wName = d.winners.map(r => r.player).join(' & ') || '—';
+  fit(wName, W - PAD * 2, 150, 'bold', SERIF); ctx.fillText(wName, PAD, 400);
+  if (d.winners.length) { ctx.fillStyle = '#b5860d'; ctx.font = `bold 40px ${SANS}`; ctx.fillText(`${fmtPts(d.winners[0].dk)} DK points`, PAD, 462); }
+  // podium
+  const pod = d.rows.filter(r => r.finish > 1 && r.finish <= 3);
+  ctx.fillStyle = '#cfcdc6'; ctx.font = `30px ${SANS}`;
+  pod.forEach((r, i) => ctx.fillText(`${ordinal(r.finish)}  ${r.player}  ·  ${fmtPts(r.dk)}`, PAD, 530 + i * 44));
+  // standings
+  const top = d.sorted.slice(0, 5), y0 = 700;
+  ctx.fillStyle = '#6b6a64'; ctx.font = `bold 22px ${SANS}`; ctx.fillText(`STANDINGS AFTER WEEK ${d.evtWeek}`, PAD, y0);
+  top.forEach(([p, s], i) => {
+    const y = y0 + 48 + i * 52;
+    ctx.fillStyle = i === 0 ? '#b5860d' : '#ffffff'; ctx.font = `bold 32px ${SANS}`; ctx.textAlign = 'left';
+    ctx.fillText(`${i + 1}.`, PAD, y);
+    ctx.fillStyle = playerColor(p, i); ctx.fillRect(PAD + 56, y - 24, 8, 30);
+    ctx.fillStyle = '#ffffff'; ctx.fillText(p, PAD + 80, y);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#cfcdc6'; ctx.fillText(`${fmtPts(s.pts)} pts`, W - PAD, y);
+  });
+  ctx.textAlign = 'right'; ctx.fillStyle = '#6b6a64'; ctx.font = `20px ${SANS}`; ctx.fillText('debocup.com', W - PAD, H - 40);
+}
+function downloadWinnerCard() {
+  if (!_lastCalc) return;
+  const link = document.createElement('a');
+  link.download = `debo-cup-week-${_lastCalc.evtWeek}-winner.png`;
+  link.href = document.getElementById('winner-canvas').toDataURL('image/png');
+  link.click();
 }
 
 // ── Standings & history views ──────────────────────────────────────────────
@@ -1435,7 +1526,7 @@ function rebuildSelects() {
 // showTopTab is defined in the Cut Sweat section
 
 function showInnerTab(name, btn) {
-  ['standings','sheet','recap','xthread'].forEach(t=>document.getElementById('itab-'+t).style.display=t===name?'':'none');
+  ['standings','sheet','recap','xthread','card'].forEach(t=>document.getElementById('itab-'+t).style.display=t===name?'':'none');
   document.querySelectorAll('.inner-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
 }
@@ -1746,7 +1837,18 @@ function generateOwnership() {
 
   // Text post
   const header = 'DEBO CUP OWNERSHIP' + (week ? '\n\n' + week + ' — ' + tournament : '\n\n' + tournament);
-  document.getElementById('ownership-post').textContent = header + '\n\ndebocup.com';
+  // Leverage = league ownership minus DK field ownership (%Drafted), when the CSV has it.
+  const lev = sorted.map(([g, owners]) => ({ g, league: owners.length / totalPlayers * 100, field: fieldOwnFor(g) }))
+    .filter(x => x.field !== undefined);
+  let levText = '';
+  if (lev.length) {
+    const over = [...lev].sort((a,b) => (b.league - b.field) - (a.league - a.field)).filter(x => x.league - x.field > 0).slice(0, 3);
+    const under = [...lev].sort((a,b) => (a.league - a.field) - (b.league - b.field)).filter(x => x.league - x.field < 0).slice(0, 3);
+    const fmt = x => `${x.g} (league ${Math.round(x.league)}% / field ${Math.round(x.field)}%)`;
+    if (over.length) levText += '\n\nLeague is heavy on: ' + over.map(fmt).join(', ');
+    if (under.length) levText += '\n\nLeague is light on: ' + under.map(fmt).join(', ');
+  }
+  document.getElementById('ownership-post').textContent = header + levText + '\n\ndebocup.com';
 
   // Render canvas
   renderOwnershipCanvas(sorted, tournament, week, totalPlayers);
@@ -1772,7 +1874,8 @@ function renderOwnershipCanvas(sorted, tournament, week, totalPlayers) {
   }, 0);
 
   const COL_GOLFER = Math.max(160, Math.ceil(maxGolfer) + 20);
-  const COL_OWN = 70;
+  const hasField = sorted.some(([g]) => fieldOwnFor(g) !== undefined);
+  const COL_OWN = hasField ? 130 : 70; // "League% · Field%" when DK's %Drafted is available
   const COL_OWNERS = Math.max(200, Math.ceil(maxOwners) + 20);
   const title = week ? week + ' — ' + tournament : tournament;
   tempCtx.font = 'bold 20px Arial, sans-serif';
@@ -1815,7 +1918,7 @@ function renderOwnershipCanvas(sorted, tournament, week, totalPlayers) {
   ctx.font = 'bold 13px Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('Golfer',     COL[0] + colW[0]/2, hy + 27);
-  ctx.fillText('Own%',       COL[1] + colW[1]/2, hy + 27);
+  ctx.fillText(hasField ? 'League · Field' : 'Own%', COL[1] + colW[1]/2, hy + 27);
   ctx.fillText('Owners',     COL[2] + colW[2]/2, hy + 27);
 
   // Chalk threshold: ownership % of the 4th-highest golfer (bold everyone tied at or above it)
@@ -1841,7 +1944,16 @@ function renderOwnershipCanvas(sorted, tournament, week, totalPlayers) {
     ctx.fillStyle = isTop ? '#ffffff' : '#cccccc';
     ctx.font = (isTop ? 'bold' : 'normal') + ' 13px Arial, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(pct, COL[1] + colW[1]/2, y + 20);
+    const field = fieldOwnFor(golfer);
+    if (hasField) {
+      const leaguePct = owners.length / totalPlayers * 100;
+      ctx.fillText(Math.round(leaguePct) + '%', COL[1] + colW[1]/2 - 28, y + 20);
+      ctx.font = 'normal 12px Arial, sans-serif';
+      ctx.fillStyle = field === undefined ? '#777777' : (leaguePct - field >= 10 ? '#7fd1a4' : leaguePct - field <= -10 ? '#f08c8f' : '#aaaaaa');
+      ctx.fillText(field === undefined ? '—' : field.toFixed(1) + '%', COL[1] + colW[1]/2 + 30, y + 20);
+    } else {
+      ctx.fillText(pct, COL[1] + colW[1]/2, y + 20);
+    }
 
     // Owners
     ctx.fillStyle = isTop ? '#ffffff' : '#aaaaaa';
@@ -2179,11 +2291,12 @@ function buildCutSweatFromLineups() {
 }
 
 function showTopTab(name, btn) {
-  ['enter','preview','ownership','cutsweat','history','live-standings','trend','usage','form','settings'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
+  ['enter','preview','ownership','cutsweat','history','live-standings','trend','usage','form','stats','settings'].forEach(t=>document.getElementById('top-'+t).style.display=t===name?'':'none');
   document.querySelectorAll('.top-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   if (name === 'cutsweat') { buildCutSweatFromLineups(); updateClaudeKeyNotice(); }
   if (name === 'settings') renderSettingsPanel();
+  if (name === 'stats') renderSeasonStats();
   if (name === 'ownership') syncOwnershipFromPreview();
   if (name === 'trend') { populateTrendPlayerSelect(); renderTrend(); }
   if (name === 'usage') renderUsage();
@@ -2927,6 +3040,274 @@ window.addEventListener('load', () => {
   renderUndoButtons();
 });
 
+
+
+// ── Season stats ──────────────────────────────────────────────────────────
+// Everything here is computed from RESULTS (+ lineups), for any season label.
+
+function seasonLabelsInResults() {
+  const labels = [...new Set(ALL_RESULTS.map(r => (r['Season'] || '').trim()).filter(Boolean))];
+  const latest = l => Math.max(0, ...ALL_RESULTS.filter(r => r['Season'] === l).map(r => parseDateAny(r['Date'])));
+  return labels.sort((a, b) => latest(b) - latest(a));
+}
+
+function splitLineup(s) {
+  s = String(s || '').trim();
+  return s && s !== 'nan' ? s.split(',').map(g => g.trim()).filter(Boolean) : [];
+}
+
+function computeSeasonStats(label) {
+  const rows = ALL_RESULTS.filter(r => (r['Season'] || '').trim() === label && r['Player'] && r['Event']);
+  // Group by event (Event_ID when present, else event name + date)
+  const events = {};
+  rows.forEach(r => {
+    const key = r['Event_ID'] || (r['Event'] + '|' + r['Date']);
+    if (!events[key]) events[key] = { key, name: r['Event'], date: r['Date'], type: r['Event Type'] || '', rows: [] };
+    events[key].rows.push({
+      player: r['Player'], finish: parseInt(r['Finish']),
+      dk: parseFloat(String(r['Fantasy_Points'] || '').replace(/,/g, '')),
+      prize: parseFloat(String(r['Prize_$'] || '0').replace(/[$,]/g, '')) || 0,
+      lineup: splitLineup(r['Lineup']),
+    });
+  });
+  const evList = Object.values(events).sort((a, b) => parseDateAny(a.date) - parseDateAny(b.date));
+  const nEvents = evList.length;
+
+  const P = {};
+  const get = p => P[p] || (P[p] = { player: p, events: 0, pts: 0, wins: 0, top3: 0, seconds: 0, finishes: [], dks: [],
+    prize: 0, uniqueSlots: 0, slots: 0, h2hW: 0, h2hL: 0, best: null, worst: null });
+  const h2h = {}; // h2h[a][b] = {w, l}
+  const cell = (a, b) => ((h2h[a] = h2h[a] || {})[b] = h2h[a][b] || { w: 0, l: 0 });
+  const lineups = []; // {player, event, date, dk, finish, lineup}
+  const margins = []; // {player, event, margin}
+
+  evList.forEach(ev => {
+    const counts = {};
+    ev.rows.forEach(r => { if (!isNaN(r.finish)) counts[r.finish] = (counts[r.finish] || 0) + 1; });
+    const golferCount = {};
+    ev.rows.forEach(r => new Set(r.lineup).forEach(g => golferCount[g] = (golferCount[g] || 0) + 1));
+    ev.rows.forEach(r => {
+      const s = get(r.player);
+      s.events++;
+      s.prize += r.prize;
+      if (!isNaN(r.finish)) {
+        s.pts += tieSplitDcPts(r.finish, counts[r.finish]);
+        s.finishes.push(r.finish);
+        if (r.finish === 1) s.wins++;
+        if (r.finish === 2) s.seconds++;
+        if (r.finish <= 3) s.top3++;
+      }
+      if (!isNaN(r.dk)) {
+        s.dks.push(r.dk);
+      }
+      // A 0 DK score means a missing lineup, not a real week — keep it out of best/worst.
+      if (!isNaN(r.dk) && r.dk > 0) {
+        const item = { player: r.player, event: ev.name, date: ev.date, dk: r.dk, finish: r.finish, lineup: r.lineup };
+        lineups.push(item);
+        if (!s.best || r.dk > s.best.dk) s.best = item;
+        if (!s.worst || r.dk < s.worst.dk) s.worst = item;
+      }
+      if (r.lineup.length) {
+        s.slots += r.lineup.length;
+        s.uniqueSlots += r.lineup.filter(g => golferCount[g] === 1).length;
+      }
+    });
+    // head-to-head: every pair that played this event
+    for (let i = 0; i < ev.rows.length; i++) for (let j = i + 1; j < ev.rows.length; j++) {
+      const a = ev.rows[i], b = ev.rows[j];
+      if (isNaN(a.finish) || isNaN(b.finish) || a.finish === b.finish) continue;
+      const [w, l] = a.finish < b.finish ? [a.player, b.player] : [b.player, a.player];
+      cell(w, l).w++; cell(l, w).l++; get(w).h2hW++; get(l).h2hL++;
+    }
+    // winning margin (DK points over the next finisher)
+    const byDk = ev.rows.filter(r => !isNaN(r.dk)).sort((a, b) => b.dk - a.dk);
+    if (byDk.length > 1 && byDk[0].finish === 1 && byDk[1].finish !== 1)
+      margins.push({ player: byDk[0].player, event: ev.name, margin: Math.round((byDk[0].dk - byDk[1].dk) * 10) / 10 });
+  });
+
+  const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const sd = a => { const m = avg(a); return a.length > 1 ? Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / (a.length - 1)) : null; };
+  Object.values(P).forEach(s => {
+    s.ppe = s.events ? s.pts / s.events : 0;
+    s.avgFinish = avg(s.finishes);
+    s.bestFinish = s.finishes.length ? Math.min(...s.finishes) : null;
+    s.sdFinish = sd(s.finishes);
+    s.avgDk = avg(s.dks);
+    s.uniqueness = s.slots ? s.uniqueSlots / s.slots : null;
+  });
+  const players = Object.values(P).sort((a, b) => b.pts - a.pts || b.wins - a.wins);
+  lineups.sort((a, b) => b.dk - a.dk);
+  return { label, nEvents, events: evList, players, h2h, lineups, margins, awards: computeAwards(players, lineups, margins, nEvents) };
+}
+
+// Awards: every tie at the top is listed. Rate-based awards need a minimum of
+// half the season's events so a two-week cameo can't win them.
+function computeAwards(players, lineups, margins, nEvents) {
+  const minEv = Math.max(1, Math.ceil(nEvents / 2));
+  const qualified = players.filter(p => p.events >= minEv);
+  const leaders = (list, val, dir = 'max') => {
+    const vals = list.map(val).filter(v => v !== null && v !== undefined && !isNaN(v));
+    if (!vals.length) return null;
+    const best = dir === 'max' ? Math.max(...vals) : Math.min(...vals);
+    return { names: list.filter(p => val(p) === best).map(p => p.player), value: best };
+  };
+  const r2 = v => Math.round(v * 100) / 100;
+  const out = [];
+  const add = (title, blurb, res, fmt) => { if (res && res.names.length) out.push({ title, blurb, names: res.names, value: fmt(res.value) }); };
+  add('Most wins', 'Weekly victories', leaders(players, p => p.wins), v => v + (v === 1 ? ' win' : ' wins'));
+  add('Points machine', `DC points per event (min ${minEv} events)`, leaders(qualified, p => r2(p.ppe)), v => fmtPts(v) + ' / event');
+  add('Top-3 regular', 'Most podium finishes', leaders(players, p => p.top3), v => v + ' top-3s');
+  add('Best average finish', `Min ${minEv} events`, leaders(qualified, p => r2(p.avgFinish), 'min'), v => v.toFixed(2));
+  add('Mr. Consistent', `Steadiest finishes — lowest spread (min ${minEv} events)`, leaders(qualified, p => p.sdFinish === null ? null : r2(p.sdFinish), 'min'), v => '±' + v.toFixed(2));
+  add('Bridesmaid', 'Most 2nd-place finishes', leaders(players, p => p.seconds), v => v + ' runner-ups');
+  add('Iron man', 'Most events played', leaders(players, p => p.events), v => v + ' events');
+  if (lineups.length) {
+    const top = lineups[0];
+    out.push({ title: 'Week of the year', blurb: 'Highest single-week DK score', names: [top.player], value: `${fmtPts(top.dk)} pts · ${top.event}` });
+  }
+  if (margins.length) {
+    const m = [...margins].sort((a, b) => b.margin - a.margin)[0];
+    out.push({ title: 'Blowout', blurb: 'Biggest winning margin', names: [m.player], value: `+${fmtPts(m.margin)} pts · ${m.event}` });
+  }
+  const withLineups = qualified.filter(p => p.uniqueness !== null);
+  add('Contrarian', 'Highest share of golfers nobody else in the league picked', leaders(withLineups, p => r2(p.uniqueness)), v => Math.round(v * 100) + '% unique');
+  add('Chalk eater', 'Lowest share of unique golfers', leaders(withLineups, p => r2(p.uniqueness), 'min'), v => Math.round(v * 100) + '% unique');
+  return out;
+}
+
+let _statsCache = null;
+function renderSeasonStats() {
+  const sel = document.getElementById('stats-season');
+  const labels = seasonLabelsInResults();
+  if (!labels.length) { document.getElementById('stats-body').innerHTML = '<p class="settings-note">No results data available.</p>'; return; }
+  const cur = sel.value && labels.includes(sel.value) ? sel.value : (labels.includes(seasonLabel()) ? seasonLabel() : labels[0]);
+  sel.innerHTML = labels.map(l => `<option${l === cur ? ' selected' : ''}>${esc(l)}</option>`).join('');
+  const st = _statsCache = computeSeasonStats(cur);
+  const hasDk = st.lineups.length > 0, hasLineups = st.players.some(p => p.uniqueness !== null);
+  const f2 = v => v === null || v === undefined ? '—' : (Math.round(v * 100) / 100).toFixed(2);
+
+  const summary = `<table class="standings-table stats-table"><thead><tr><th>Player</th><th>Ev</th><th>DC pts</th><th>Pts/ev</th><th>W</th><th>T3</th><th>Avg fin</th><th>H2H</th>${hasDk ? '<th>Avg DK</th><th>Best wk</th>' : ''}${hasLineups ? '<th>Unique</th>' : ''}</tr></thead><tbody>` +
+    st.players.map(p => `<tr><td style="font-weight:600;white-space:nowrap;"><span class="color-swatch" style="background:${esc(playerColor(p.player))}"></span>${esc(p.player)}</td><td>${p.events}</td><td>${fmtPts(p.pts)}</td><td>${f2(p.ppe)}</td><td>${p.wins}</td><td>${p.top3}</td><td>${f2(p.avgFinish)}</td><td style="white-space:nowrap;">${p.h2hW}-${p.h2hL}</td>${hasDk ? `<td>${f2(p.avgDk)}</td><td>${p.best ? fmtPts(p.best.dk) : '—'}</td>` : ''}${hasLineups ? `<td>${p.uniqueness === null ? '—' : Math.round(p.uniqueness * 100) + '%'}</td>` : ''}</tr>`).join('') + '</tbody></table>';
+
+  const awards = st.awards.map(a => `<div class="award-tile"><div class="award-title">${esc(a.title)}</div><div class="award-names">${a.names.map(esc).join(' & ')}</div><div class="award-value">${esc(a.value)}</div><div class="award-blurb">${esc(a.blurb)}</div></div>`).join('');
+
+  const names = st.players.map(p => p.player);
+  const h2h = `<div style="overflow-x:auto;"><table class="h2h-table"><thead><tr><th></th>${names.map(n => `<th title="${esc(n)}">${esc(n)}</th>`).join('')}</tr></thead><tbody>` +
+    names.map(a => `<tr><th>${esc(a)}</th>${names.map(b => {
+      if (a === b) return '<td class="h2h-self"></td>';
+      const c = (st.h2h[a] || {})[b]; if (!c) return '<td>—</td>';
+      const tot = c.w + c.l, share = tot ? c.w / tot : 0.5;
+      const bg = share > 0.5 ? `rgba(45,106,79,${(share - 0.5) * 1.2})` : share < 0.5 ? `rgba(155,34,38,${(0.5 - share) * 1.2})` : 'transparent';
+      return `<td style="background:${bg}">${c.w}-${c.l}</td>`;
+    }).join('')}</tr>`).join('') + '</tbody></table></div>';
+
+  const lineupRow = l => `<tr><td style="font-weight:600;">${esc(l.player)}</td><td>${fmtPts(l.dk)}</td><td>${isNaN(l.finish) ? '—' : ordinal(l.finish)}</td><td>${esc(l.event)}</td><td class="note">${esc(l.lineup.join(', ') || '—')}</td></tr>`;
+  const lineupTable = list => `<table class="standings-table stats-table"><thead><tr><th>Player</th><th>DK pts</th><th>Finish</th><th>Event</th><th>Lineup</th></tr></thead><tbody>${list.map(lineupRow).join('')}</tbody></table>`;
+
+  document.getElementById('stats-body').innerHTML = `
+    <div class="card"><div class="section-label">Season awards — ${esc(st.label)} (${st.nEvents} events)</div>
+      <div class="award-grid">${awards}</div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="copy-btn" onclick="downloadAwardsImage()">Download awards image</button>
+      </div>
+      <canvas id="awards-canvas" style="display:none;"></canvas>
+    </div>
+    <div class="card"><div class="section-label">Player summary</div>
+      <p class="settings-note">DC points split ties the same way the league does. H2H = head-to-head record against everyone else across the events you both played. Unique = share of your lineup slots that nobody else in the league picked that week.</p>
+      <div style="overflow-x:auto;">${summary}</div></div>
+    <div class="card"><div class="section-label">Head-to-head</div>
+      <p class="settings-note">Row player's record against the column player — green = row player leads the series.</p>${h2h}</div>
+    ${hasDk ? `<div class="card"><div class="section-label">Best lineups</div><div style="overflow-x:auto;">${lineupTable(st.lineups.slice(0, 5))}</div>
+      <div class="section-label" style="margin-top:16px;">Worst lineups</div><div style="overflow-x:auto;">${lineupTable(st.lineups.slice(-5).reverse())}</div></div>` : ''}`;
+}
+
+// ── Awards image (1080 wide, tiles in two columns) ──
+function drawAwardsCanvas(st) {
+  const canvas = document.getElementById('awards-canvas');
+  const W = 1080, PAD = 48, COLS = 2, GAP = 20, TILE_H = 170, HEAD = 190;
+  const rows = Math.ceil(st.awards.length / COLS);
+  const H = HEAD + rows * (TILE_H + GAP) + PAD;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#141414'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#b5860d'; ctx.fillRect(PAD, 56, 60, 4);
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 54px Georgia, serif'; ctx.textAlign = 'left';
+  ctx.fillText('DEBO CUP', PAD, 120);
+  ctx.fillStyle = '#b5860d'; ctx.font = 'bold 22px Helvetica Neue, Arial, sans-serif';
+  ctx.fillText(`${st.label.toUpperCase()} SEASON AWARDS`, PAD, 158);
+  const tileW = (W - PAD * 2 - GAP * (COLS - 1)) / COLS;
+  const fit = (text, max, size, weight = 'bold', family = 'Helvetica Neue, Arial, sans-serif') => {
+    let s = size; do { ctx.font = `${weight} ${s}px ${family}`; s--; } while (ctx.measureText(text).width > max && s > 10);
+  };
+  st.awards.forEach((a, i) => {
+    const x = PAD + (i % COLS) * (tileW + GAP), y = HEAD + Math.floor(i / COLS) * (TILE_H + GAP);
+    ctx.fillStyle = '#1f1f1f'; ctx.fillRect(x, y, tileW, TILE_H);
+    ctx.fillStyle = playerColor(a.names[0]); ctx.fillRect(x, y, 6, TILE_H);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#9e9d97'; ctx.font = 'bold 16px Helvetica Neue, Arial, sans-serif';
+    ctx.fillText(a.title.toUpperCase(), x + 26, y + 38);
+    ctx.fillStyle = '#ffffff'; fit(a.names.join(' & '), tileW - 52, 40, 'bold', 'Georgia, serif');
+    ctx.fillText(a.names.join(' & '), x + 26, y + 90);
+    ctx.fillStyle = '#b5860d'; fit(a.value, tileW - 52, 22);
+    ctx.fillText(a.value, x + 26, y + 124);
+    ctx.fillStyle = '#6b6a64'; fit(a.blurb, tileW - 52, 14, 'normal');
+    ctx.fillText(a.blurb, x + 26, y + 150);
+  });
+  ctx.fillStyle = '#6b6a64'; ctx.font = '16px Helvetica Neue, Arial, sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText('debocup.com', W - PAD, H - 20);
+  return canvas;
+}
+function downloadAwardsImage() {
+  if (!_statsCache) return;
+  const canvas = drawAwardsCanvas(_statsCache);
+  const link = document.createElement('a');
+  link.download = `debo-cup-${_statsCache.label.toLowerCase().replace(/\s+/g, '-')}-awards.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ── STATS tab in the sheet (for Softr) ──
+// One row per season + player. Rows are updated in place and new ones are
+// appended, so row order (and any Softr record IDs next to them) never shifts.
+const STATS_HEADER = ['Season', 'Player', 'Events', 'DC_Points', 'Pts_Per_Event', 'Wins', 'Top3s', 'Avg_Finish', 'Best_Finish',
+  'Avg_DK_Points', 'Best_DK_Week', 'Best_DK_Event', 'Worst_DK_Week', 'H2H_Wins', 'H2H_Losses', 'Unique_Pct', 'Prize_$', 'Updated'];
+function statsRows(st) {
+  const r2 = v => v === null || v === undefined ? '' : Math.round(v * 100) / 100;
+  const now = new Date().toISOString().slice(0, 10);
+  return st.players.map(p => [st.label, p.player, p.events, r2(p.pts), r2(p.ppe), p.wins, p.top3, r2(p.avgFinish), p.bestFinish ?? '',
+    r2(p.avgDk), p.best ? p.best.dk : '', p.best ? p.best.event : '', p.worst ? p.worst.dk : '', p.h2hW, p.h2hL,
+    p.uniqueness === null ? '' : Math.round(p.uniqueness * 1000) / 10, r2(p.prize), now]);
+}
+function writeStatsToSheet() {
+  const labels = seasonLabelsInResults();
+  if (!labels.length) { alert('No results loaded.'); return; }
+  const status = document.getElementById('stats-write-status');
+  withAuth(async () => {
+    try {
+      status.textContent = 'Writing...';
+      const meta = await getSheetMeta();
+      const tab = 'STATS';
+      if (meta.byTitle[tab] === undefined) {
+        await batchUpdate([{ addSheet: { properties: { title: tab, gridProperties: { rowCount: 400, columnCount: STATS_HEADER.length, frozenRowCount: 1 } } } }]);
+        await updateValues(tab, `A1:${colLetter(STATS_HEADER.length - 1)}1`, [STATS_HEADER], 'RAW');
+      }
+      const existing = await getValues(tab, 'A:B');
+      const index = {};
+      existing.forEach((r, i) => { if (i > 0) index[(r[0] || '') + '|' + (r[1] || '')] = i + 1; });
+      const updates = [], appends = [];
+      labels.forEach(l => statsRows(computeSeasonStats(l)).forEach(row => {
+        const at = index[row[0] + '|' + row[1]];
+        if (at) updates.push({ range: `'${tab}'!A${at}:${colLetter(STATS_HEADER.length - 1)}${at}`, values: [row] });
+        else appends.push(row);
+      }));
+      if (updates.length) await sheetsApi('/values:batchUpdate', { method: 'POST', body: JSON.stringify({ valueInputOption: 'RAW', data: updates }) });
+      if (appends.length) await appendValues(tab, appends, 'RAW');
+      status.textContent = `STATS tab updated — ${updates.length} row(s) refreshed, ${appends.length} added, ${labels.length} season(s).`;
+    } catch (e) {
+      status.textContent = 'Write failed: ' + e.message;
+    }
+  });
+}
 
 
 // ── Standings Trend (small multiples) ────────────────────────────────────
